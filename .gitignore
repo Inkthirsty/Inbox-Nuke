@@ -1,6 +1,7 @@
 *.bat
+*.spec
+*.exe
 **/venv/
 **/temp/
 **/dist/
 **/build/
-**/main.spec
