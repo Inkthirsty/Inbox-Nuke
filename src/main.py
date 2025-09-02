@@ -1,9 +1,4 @@
-import aiohttp
-import asyncio
-import sys
-import json
-import os
-import shutil
+import aiohttp, aiofiles, asyncio, sys, json, os, shutil
 from PySide6.QtWidgets import (
     QApplication,
     QWidget,
@@ -22,10 +17,11 @@ from PySide6.QtGui import QColor, QMouseEvent, QFont, QPixmap, QIcon
 from qasync import QEventLoop
 
 DIRECTORY = os.path.dirname(__file__)
+
 CONFIG_FILENAME = "config.json"
 CONFIG_PATH = os.path.join(DIRECTORY, CONFIG_FILENAME)
-TEMP_PATH = os.path.join(DIRECTORY, "temp")
 
+TEMP_PATH = os.path.join(DIRECTORY, "temp")
 if os.path.exists(TEMP_PATH):
     shutil.rmtree(TEMP_PATH)
 os.makedirs(TEMP_PATH, exist_ok=True)
@@ -36,7 +32,6 @@ COLOR_THEME = "#385389"
 
 TITLE = "Inbox Nuke"
 VERSION = "1.0.0"
-
 
 class Page(QWidget):
     def __init__(self):
@@ -374,13 +369,63 @@ class MainWindow(QWidget):
         while True:
             await asyncio.sleep(1)
 
+class AsyncSynchronizedDict:
+    def __init__(self, filename):
+        self.filename = filename
+        self.data = {}
+
+    async def load(self):
+        try:
+            if not os.path.exists(self.filename):
+                raise FileNotFoundError
+            async with aiofiles.open(self.filename, 'r') as f:
+                content = await f.read()
+                self.data = json.loads(content)
+        except (FileNotFoundError, json.JSONDecodeError):
+            self.data = {}
+
+    async def _write_to_file(self):
+        async with aiofiles.open(self.filename, 'w') as f:
+            await f.write(json.dumps(self.data, indent=4))
+
+    async def __setitem__(self, key, value):
+        self.data[key] = value
+        await self._write_to_file()
+
+    async def __getitem__(self, key):
+        return self.data[key]
+
+    async def __delitem__(self, key):
+        del self.data[key]
+        await self._write_to_file()
+
+    async def update(self, *args, **kwargs):
+        self.data.update(*args, **kwargs)
+        await self._write_to_file()
+    
+    def get_data(self):
+        return self.data
+    
+    def __repr__(self):
+        return f"AsyncSynchronizedDict({self.data})"
 
 async def main_async(window):
     async with aiohttp.ClientSession() as session:
-        if not os.path.exists(CONFIG_PATH):
-            
-            async with session.get("") as response:
-                resp = json.loads(await response.text())
+        CONFIG = AsyncSynchronizedDict(CONFIG_PATH)
+
+        await CONFIG.load()
+
+        if not CONFIG.get_data():
+            try:
+                async with session.get("https://github.com/Inkthirsty/Inbox-Nuke/raw/refs/heads/main/src/config.json") as response:
+                    response.raise_for_status()
+                    resp = json.loads(await response.text())
+                    await CONFIG.update(resp)
+                    print("config downloaded and saved")
+            except aiohttp.ClientError as e:
+                print(f"Error fetching remote config: {e}")
+
+    await CONFIG.update({"airplane": True})
     asyncio.create_task(window.do_async_task())
     await asyncio.sleep(0)
 
