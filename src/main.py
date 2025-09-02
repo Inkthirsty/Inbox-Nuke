@@ -63,25 +63,29 @@ class Pages:
     class Home(Page):
         def _init_widgets(self):
             layout = QVBoxLayout(self)
-            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
+            layout.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
             layout.addWidget(QLabel("Home Page"), alignment=Qt.AlignmentFlag.AlignHCenter)
 
-            self.input = QLineEdit("Type something here")
-            layout.addWidget(self.input)
+            button_size = (200, 30)
 
-            self.async_btn = QPushButton("Run Async Task")
-            self.async_btn.setMinimumSize(200, 30)
-            self.async_btn.setMaximumSize(200, 30)
-            layout.addWidget(self.async_btn)
+            self.input = QLineEdit("Type something here")
+            layout.addWidget(self.input,  alignment=Qt.AlignmentFlag.AlignHCenter)
+
+            self.async_btn = QPushButton("Run Async Task", flat=True)
+            self.async_btn.setMinimumSize(*button_size)
+            self.async_btn.setMaximumSize(*button_size)
+            layout.addWidget(self.async_btn, alignment=Qt.AlignmentFlag.AlignHCenter)
             
             self.async_btn.clicked.connect(
                 lambda: asyncio.create_task(self.do_async_button())
             )
 
         async def do_async_button(self):
-            print("Async button clicked, waiting...")
-            await asyncio.sleep(1)
-            print("Async button finished!")
+            print("Async button clicked!")
+            self.async_btn.setEnabled(False)
+            await asyncio.sleep(3)
+            self.async_btn.setEnabled(True)
+            print("Button ready again!")
 
     class Emails(Page):
         def _init_widgets(self):
@@ -442,8 +446,8 @@ class AsyncSynchronizedDict:
         self.data.update(*args, **kwargs)
         await self._write_to_file()
     
-    def get_data(self):
-        return self.data
+    def get(self):
+        return self.data.get
     
     def __repr__(self):
         return f"AsyncSynchronizedDict({self.data})"
@@ -453,17 +457,20 @@ async def main_async(window):
     async with aiohttp.ClientSession() as session:
         CONFIG = AsyncSynchronizedDict(CONFIG_PATH)
         await CONFIG.load()
-        if not CONFIG.get_data():
+        if not CONFIG.get():
             try:
                 async with session.get("https://raw.githubusercontent.com/Inkthirsty/Inbox-Nuke/refs/heads/main/src/config.example.json") as response:
                     response.raise_for_status()
                     resp = json.loads(await response.text())
+
+                    for key, value in resp.items():
+                        if not CONFIG.get(key):
+                            CONFIG
                     await CONFIG.update(resp)
                     print("config downloaded and saved")
             except aiohttp.ClientError as e:
                 print(f"Error fetching remote config: {e}")
 
-    await CONFIG.update({"airplane": True})
     asyncio.create_task(window.do_async_task())
     await asyncio.sleep(0)
 
