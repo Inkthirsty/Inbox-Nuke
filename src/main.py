@@ -2,11 +2,18 @@ import aiohttp, asyncio, sys, json, os, shutil
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QLabel, QLineEdit,
     QStackedWidget, QPushButton, QFrame, QGraphicsDropShadowEffect,
-    QHBoxLayout
+    QHBoxLayout, QSizePolicy
 )
-from PySide6.QtCore import Qt, QPoint, QByteArray, QRect, QSize
+from PySide6.QtCore import Qt, QPoint, QByteArray, QRect, QSize, QPointF
 from PySide6.QtGui import QColor, QMouseEvent, QFont, QPixmap, QIcon
-from qasync import QEventLoop
+
+# Import qasync to run asyncio event loop
+try:
+    from qasync import QEventLoop
+except ImportError:
+    print("qasync not found. Please install it with 'pip install qasync'")
+    sys.exit(1)
+
 
 DIRECTORY = os.path.dirname(__file__)
 
@@ -26,14 +33,19 @@ TITLE = "Inbox Nuke"
 VERSION = "1.0.0"
 
 class Page(QWidget):
+    """
+    Base class for all pages in the application.
+    """
     def __init__(self):
         super().__init__()
         self._init_widgets()
 
     def _init_widgets(self):
+        # Placeholder for widgets in child classes
         pass
 
     def reset(self):
+        # Reset the page by clearing the layout and re-initializing widgets
         for i in reversed(range(self.layout().count() if self.layout() else 0)):
             item = self.layout().takeAt(i)
             widget = item.widget()
@@ -42,14 +54,14 @@ class Page(QWidget):
         self._init_widgets()
 
 class Pages:
+    """
+    Container for all application pages.
+    """
     class Home(Page):
         def _init_widgets(self):
             layout = QVBoxLayout(self)
             layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
-            layout.addWidget(QLabel("homer"), alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
-
-            def test():
-                print(self.input.text())
+            layout.addWidget(QLabel("Home Page"), alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
 
             self.input = QLineEdit("Type something here")
             layout.addWidget(self.input)
@@ -58,7 +70,7 @@ class Pages:
         def _init_widgets(self):
             layout = QVBoxLayout(self)
             layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
-            layout.addWidget(QLabel("homer"), alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
+            layout.addWidget(QLabel("Emails Page"), alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
             self.input = QLineEdit("Type something here")
             layout.addWidget(self.input)
     
@@ -66,12 +78,13 @@ class Pages:
         def _init_widgets(self):
             layout = QVBoxLayout(self)
             layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
-            layout.addWidget(QLabel("homer"), alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
+            layout.addWidget(QLabel("Settings Page"), alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
             self.input = QLineEdit("Type something here")
             layout.addWidget(self.input)
 
     @classmethod
     def instigate(cls):
+        """Instantiate all page classes."""
         for name, page_cls in vars(cls).items():
             if isinstance(page_cls, type) and issubclass(page_cls, Page):
                 setattr(cls, name, page_cls())
@@ -86,52 +99,25 @@ class MainWindow(QWidget):
         self.resize(740, 460)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        font = QFont("Consolas", 12)
-        font.setBold(True)
-        self.setFont(font)
+        
+        # Initializing state variables for mouse events
+        self._dragging = False
+        self._resizing = False
+        self._drag_start_pos = QPoint()
+        self._resize_direction = None
+        self._normal_geometry = self.geometry()
+        
+        self._setup_ui()
+        self._setup_connections()
+        self._setup_mouse_events()
 
-        self._normal_style = f"""
-            QFrame#container {{
-                background-color: {COLOR_BACKGROUND};
-                border: 3px solid {COLOR_THEME};
-                border-radius: 12px;
-            }}
-            QFrame#titlebar {{
-                background-color: {COLOR_THEME};
-            }}
-            QStackedWidget {{
-                background: qlineargradient(
-                    x1:0, y1:0, x2:1, y2:2,
-                    stop:0 {COLOR_BACKGROUND},
-                    stop:1 {COLOR_FOREGROUND}
-                );
-                border-bottom-left-radius: 12px;
-                border-bottom-right-radius: 12px;
-            }}
-        """
+        self.apply_style()
 
-        self._maximized_style = f"""
-            QFrame#container {{
-                background-color: {COLOR_BACKGROUND};
-                border: none;
-                border-radius: 0px;
-            }}
-            QFrame#titlebar {{
-                background-color: {COLOR_THEME};
-            }}
-            QStackedWidget {{
-                background: qlineargradient(
-                    x1:0, y1:0, x2:1, y2:2,
-                    stop:0 {COLOR_BACKGROUND},
-                    stop:1 {COLOR_FOREGROUND}
-                );
-                border-radius: 0px;
-            }}
-        """
-
-        container = QFrame(self)
-        container.setObjectName("container")
-        container_layout = QVBoxLayout(container)
+    def _setup_ui(self):
+        """Sets up the main UI components."""
+        self.container = QFrame(self)
+        self.container.setObjectName("container")
+        container_layout = QVBoxLayout(self.container)
         container_layout.setContentsMargins(0, 0, 0, 0)
         container_layout.setSpacing(0)
 
@@ -139,31 +125,35 @@ class MainWindow(QWidget):
         glow.setColor(QColor(COLOR_THEME))
         glow.setBlurRadius(40)
         glow.setOffset(0)
-        container.setGraphicsEffect(glow)
+        self.container.setGraphicsEffect(glow)
 
-        title_bar = QFrame()
-        title_bar.setObjectName("titlebar")
-        title_bar.setFixedHeight(40)
-        title_layout = QHBoxLayout(title_bar)
+        self.title_bar = QFrame()
+        self.title_bar.setObjectName("titlebar")
+        self.title_bar.setFixedHeight(40)
+        title_layout = QHBoxLayout(self.title_bar)
         title_layout.setContentsMargins(10, 0, 10, 0)
 
-        self.title_label = QLabel(f"{TITLE} v{VERSION}")
+        self.title_label = QLabel(f"{TITLE} (v{VERSION})")
         title_layout.addWidget(self.title_label)
         title_layout.addStretch()
 
         self.btn_min = QPushButton()
         self.btn_max = QPushButton()
         self.btn_close = QPushButton()
+
+        # Keep button sizes the same, but scale down the icons
+        button_size = QSize(40, 30)
         icon_size = QSize(int(0.4 * 40), int(0.4 * 30))
-        self.btn_min.setIcon(QIcon("assets/minus.png"))
+        
+        self.btn_min.setIcon(QIcon(os.path.join(DIRECTORY, "assets/minus.png")))
         self.btn_min.setIconSize(icon_size)
-        self.btn_max.setIcon(QIcon("assets/square1.png"))
+        self.btn_max.setIcon(QIcon(os.path.join(DIRECTORY, "assets/square1.png")))
         self.btn_max.setIconSize(icon_size)
-        self.btn_close.setIcon(QIcon("assets/cross.png"))
+        self.btn_close.setIcon(QIcon(os.path.join(DIRECTORY, "assets/cross.png")))
         self.btn_close.setIconSize(icon_size)
+
         for button in (self.btn_min, self.btn_max, self.btn_close):
-            button.setFixedSize(40, 30)
-            button.setFont(font)
+            button.setFixedSize(button_size)
             button.setStyleSheet("""
                 QPushButton {
                     background-color: transparent;
@@ -174,17 +164,18 @@ class MainWindow(QWidget):
                     border-radius: 12px;
                 }
             """)
+
         title_layout.addWidget(self.btn_min, alignment=Qt.AlignmentFlag.AlignCenter)
         title_layout.addWidget(self.btn_max, alignment=Qt.AlignmentFlag.AlignCenter)
         title_layout.addWidget(self.btn_close, alignment=Qt.AlignmentFlag.AlignCenter)
 
         self.stack = QStackedWidget()
-        container_layout.addWidget(title_bar)
+        container_layout.addWidget(self.title_bar)
         container_layout.addWidget(self.stack)
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.addWidget(container)
+        main_layout.addWidget(self.container)
 
         self.pages = {}
         for name, obj in vars(Pages).items():
@@ -193,174 +184,206 @@ class MainWindow(QWidget):
                 self.stack.addWidget(obj)
         self.switchPage(Pages.Home)
 
-        self.dragging = False
-        self.drag_pos = QPoint()
-        self._resizing = False
-        self._resize_dir = None
-        self._maximized = False
-        self._normal_geometry = self.geometry()
-        self._drag_ratio_x = 0
-        self._drag_ratio_y = 0
-        self._dragged_to_top = False
-
-        self.btn_close.clicked.connect(lambda: self.close())
-        self.btn_min.clicked.connect(lambda: self.showMinimized())
-        self.btn_max.clicked.connect(lambda: self.toggleMaximizeRestore())
-
+    def _setup_connections(self):
+        """Connects button signals to slots."""
+        self.btn_close.clicked.connect(self.close)
+        self.btn_min.clicked.connect(self.showMinimized)
+        self.btn_max.clicked.connect(self.toggleMaximizeRestore)
+    
+    def _setup_mouse_events(self):
+        """Enables mouse tracking for the window and title bar."""
         self.setMouseTracking(True)
-        self._enable_mouse_tracking(self)
-        self.setStyleSheet(self._normal_style)
+        self.title_bar.setMouseTracking(True)
+        for widget in self.findChildren(QWidget):
+            widget.setMouseTracking(True)
 
-    def _enable_mouse_tracking(self, widget):
-        widget.setMouseTracking(True)
-        for child in widget.findChildren(QWidget):
-            child.setMouseTracking(True)
+    def apply_style(self):
+        """Applies the appropriate stylesheet based on window state."""
+        if self.isMaximized():
+            style = f"""
+                QFrame#container {{
+                    background-color: {COLOR_BACKGROUND};
+                    border: none;
+                    border-radius: 0px;
+                }}
+                QFrame#titlebar {{
+                    background-color: {COLOR_THEME};
+                }}
+                QStackedWidget {{
+                    background: qlineargradient(
+                        x1:0, y1:0, x2:1, y2:2,
+                        stop:0 {COLOR_BACKGROUND},
+                        stop:1 {COLOR_FOREGROUND}
+                    );
+                    border-radius: 0px;
+                }}
+            """
+            self.btn_max.setIcon(QIcon(os.path.join(DIRECTORY, "assets/square2.png")))
+        else:
+            style = f"""
+                QFrame#container {{
+                    background-color: {COLOR_BACKGROUND};
+                    border: 3px solid {COLOR_THEME};
+                    border-radius: 12px;
+                }}
+                QFrame#titlebar {{
+                    background-color: {COLOR_THEME};
+                }}
+                QStackedWidget {{
+                    background: qlineargradient(
+                        x1:0, y1:0, x2:1, y2:2,
+                        stop:0 {COLOR_BACKGROUND},
+                        stop:1 {COLOR_FOREGROUND}
+                    );
+                    border-bottom-left-radius: 12px;
+                    border-bottom-right-radius: 12px;
+                }}
+            """
+            self.btn_max.setIcon(QIcon(os.path.join(DIRECTORY, "assets/square1.png")))
+        
+        self.setStyleSheet(style)
 
     def toggleMaximizeRestore(self):
-        if self._maximized:
-            self.setGeometry(self._normal_geometry)
-            self.btn_max.setIcon(QIcon("assets/square1.png"))
-            self.setStyleSheet(self._normal_style)
-            self._maximized = False
+        """Toggles between maximized and normal window states."""
+        if self.isMaximized():
+            self.showNormal()
+            self.apply_style()
         else:
-            self._normal_geometry = self.geometry()
-            self.setGeometry(QApplication.primaryScreen().availableGeometry())
-            self.btn_max.setIcon(QIcon("assets/square2.png"))
-            self.setStyleSheet(self._maximized_style)
-            self._maximized = True
+            self.showMaximized()
+            self.apply_style()
 
     def resizeEvent(self, event):
-        if not self._maximized:
+        """Updates normal geometry on resize."""
+        if not self.isMaximized():
             self._normal_geometry = self.geometry()
         super().resizeEvent(event)
 
     def moveEvent(self, event):
-        if not self._maximized:
+        """Updates normal geometry on move."""
+        if not self.isMaximized():
             self._normal_geometry = self.geometry()
         super().moveEvent(event)
-
 
     def getPage(self) -> Page:
         return self.stack.currentWidget()
 
     def switchPage(self, page: Page):
-        if not self.getPage() != page:
+        if self.getPage() != page:
             self.stack.setCurrentWidget(page)
 
-    def mousePressEvent(self, event: QMouseEvent):
-        if event.button() != Qt.MouseButton.LeftButton:
-            return
-        pos = event.position().toPoint()
+    def get_resize_direction(self, pos: QPoint):
+        """Determine the direction of the resize based on mouse position."""
         rect = self.rect()
-        margin = self.RESIZE_MARGIN
+        left = pos.x() <= rect.left() + self.RESIZE_MARGIN
+        right = pos.x() >= rect.right() - self.RESIZE_MARGIN
+        top = pos.y() <= rect.top() + self.RESIZE_MARGIN
+        bottom = pos.y() >= rect.bottom() - self.RESIZE_MARGIN
 
-        if self._maximized:
-            self.dragging = True
-            self._drag_ratio_x = pos.x() / self.width()
-            self._drag_ratio_y = pos.y() / self.height()
-            self.drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
-            return
+        if top and left:
+            return Qt.CursorShape.SizeFDiagCursor
+        elif top and right:
+            return Qt.CursorShape.SizeBDiagCursor
+        elif bottom and left:
+            return Qt.CursorShape.SizeBDiagCursor
+        elif bottom and right:
+            return Qt.CursorShape.SizeFDiagCursor
+        elif top:
+            return Qt.CursorShape.SizeVerCursor
+        elif bottom:
+            return Qt.CursorShape.SizeVerCursor
+        elif left:
+            return Qt.CursorShape.SizeHorCursor
+        elif right:
+            return Qt.CursorShape.SizeHorCursor
+        return Qt.CursorShape.ArrowCursor
 
-        if pos.x() < margin and pos.y() < margin:
-            self._resize_dir = "topleft"
-        elif pos.x() > rect.width() - margin and pos.y() < margin:
-            self._resize_dir = "topright"
-        elif pos.x() < margin and pos.y() > rect.height() - margin:
-            self._resize_dir = "bottomleft"
-        elif pos.x() > rect.width() - margin and pos.y() > rect.height() - margin:
-            self._resize_dir = "bottomright"
-        elif pos.x() < margin:
-            self._resize_dir = "left"
-        elif pos.x() > rect.width() - margin:
-            self._resize_dir = "right"
-        elif pos.y() < margin:
-            self._resize_dir = "top"
-        elif pos.y() > rect.height() - margin:
-            self._resize_dir = "bottom"
-        else:
-            self.dragging = True
-            self.drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
-            return
-
-        self._resizing = True
-        self._start_geom = self.geometry()
-        self._start_pos = event.globalPosition().toPoint()
+    def mousePressEvent(self, event: QMouseEvent):
+        """Handles mouse press for dragging and resizing."""
+        if event.button() == Qt.LeftButton:
+            pos = event.position().toPoint()
+            self._resize_direction = self.get_resize_direction(pos)
+            
+            # Handles dragging for both maximized and normal states
+            if self.title_bar.rect().contains(self.title_bar.mapFromGlobal(event.globalPosition().toPoint())):
+                if self.isMaximized():
+                    # Restore and reposition the window before starting the drag
+                    self.showNormal()
+                    global_pos = event.globalPosition().toPoint()
+                    new_x = global_pos.x() - self.width() // 2
+                    new_y = global_pos.y() - 10 
+                    self.move(new_x, new_y)
+                
+                self._dragging = True
+                self._drag_start_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+                event.accept()
+            # Handle resizing
+            elif self._resize_direction != Qt.CursorShape.ArrowCursor:
+                self._resizing = True
+                self._drag_start_pos = event.globalPosition().toPoint()
+                event.accept()
+                
+        super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent):
+        """Handles mouse movement for dragging and resizing."""
         pos = event.position().toPoint()
-        rect = self.rect()
-        margin = self.RESIZE_MARGIN
+        global_pos = event.globalPosition().toPoint()
 
-        if not self._resizing and not self.dragging and not self._maximized:
-            if pos.x() < margin and pos.y() < margin:
-                self.setCursor(Qt.CursorShape.SizeFDiagCursor)
-            elif pos.x() > rect.width() - margin and pos.y() < margin:
-                self.setCursor(Qt.CursorShape.SizeBDiagCursor)
-            elif pos.x() < margin and pos.y() > rect.height() - margin:
-                self.setCursor(Qt.CursorShape.SizeBDiagCursor)
-            elif pos.x() > rect.width() - margin and pos.y() > rect.height() - margin:
-                self.setCursor(Qt.CursorShape.SizeFDiagCursor)
-            elif pos.x() < margin or pos.x() > rect.width() - margin:
-                self.setCursor(Qt.CursorShape.SizeHorCursor)
-            elif pos.y() < margin or pos.y() > rect.height() - margin:
-                self.setCursor(Qt.CursorShape.SizeVerCursor)
-            else:
-                self.setCursor(Qt.CursorShape.ArrowCursor)
+        # Handle dragging
+        if self._dragging:
+            new_pos = global_pos - self._drag_start_pos
+            self.move(new_pos)
+            event.accept()
+            return
+        
+        # Handle resizing
+        elif self._resizing:
+            diff = global_pos - self._drag_start_pos
+            new_rect = self.geometry()
+            
+            if self._resize_direction == Qt.CursorShape.SizeHorCursor:
+                new_rect.setRight(new_rect.right() + diff.x())
+            elif self._resize_direction == Qt.CursorShape.SizeVerCursor:
+                new_rect.setBottom(new_rect.bottom() + diff.y())
+            elif self._resize_direction == Qt.CursorShape.SizeFDiagCursor: # SE or NW
+                new_rect.setRight(new_rect.right() + diff.x())
+                new_rect.setBottom(new_rect.bottom() + diff.y())
+            elif self._resize_direction == Qt.CursorShape.SizeBDiagCursor: # NE or SW
+                new_rect.setRight(new_rect.right() + diff.x())
+                new_rect.setTop(new_rect.top() + diff.y())
 
-        if self.dragging:
-            if self._maximized:
-                cursor = event.globalPosition().toPoint()
-                geom = QRect(self._normal_geometry)
-                new_x = int(cursor.x() - self._drag_ratio_x * geom.width())
-                new_y = int(cursor.y() - self._drag_ratio_y * geom.height())
-                self.setGeometry(geom)
-                self.move(new_x, new_y)
-                self._maximized = False
-                self.btn_max.setIcon(QIcon("assets/square1.png"))
-                self.setStyleSheet(self._normal_style)
-            else:
-                self.move(event.globalPosition().toPoint() - self.drag_pos)
-                self._dragged_to_top = event.globalPosition().y() <= 0
+            self.setGeometry(new_rect)
+            self._drag_start_pos = global_pos
+            event.accept()
+            return
 
-        elif self._resizing and not self._maximized:
-            delta = event.globalPosition().toPoint() - self._start_pos
-            geom = QRect(self._start_geom)
-            if "left" in self._resize_dir:
-                new_left = geom.left() + delta.x()
-                if geom.right() - new_left < self.minimumWidth():
-                    new_left = geom.right() - self.minimumWidth()
-                geom.setLeft(new_left)
-            if "right" in self._resize_dir:
-                new_right = geom.right() + delta.x()
-                if new_right - geom.left() < self.minimumWidth():
-                    new_right = geom.left() + self.minimumWidth()
-                geom.setRight(new_right)
-            if "top" in self._resize_dir:
-                new_top = geom.top() + delta.y()
-                if geom.bottom() - new_top < self.minimumHeight():
-                    new_top = geom.bottom() - self.minimumHeight()
-                geom.setTop(new_top)
-            if "bottom" in self._resize_dir:
-                new_bottom = geom.bottom() + delta.y()
-                if new_bottom - geom.top() < self.minimumHeight():
-                    new_bottom = geom.top() + self.minimumHeight()
-                geom.setBottom(new_bottom)
-            self.setGeometry(geom)
+        # Change cursor on hover for resizing
+        if not self.isMaximized():
+            cursor = self.get_resize_direction(pos)
+            self.setCursor(cursor)
+        else:
+            self.setCursor(Qt.CursorShape.ArrowCursor)
 
+        super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent):
-        if self._dragged_to_top and not self._maximized:
-            self._normal_geometry = self.geometry()
-            self.setGeometry(QApplication.primaryScreen().availableGeometry())
-            self._maximized = True
-            self.btn_max.setIcon(QIcon("assets/square2.png"))
-            self.setStyleSheet(self._maximized_style)
+        """Handles mouse release to stop dragging and snapping."""
+        if event.button() == Qt.LeftButton:
+            self._dragging = False
+            self._resizing = False
+            self.setCursor(Qt.CursorShape.ArrowCursor)
 
-        self.dragging = False
-        self._resizing = False
-        self._resize_dir = None
-        self._dragged_to_top = False
-        self.setCursor(Qt.CursorShape.ArrowCursor)
+            # Snap to maximize if dragged to top and cursor is at the top.
+            if self.y() <= 0 and event.globalPosition().y() <= 5:
+                self.showMaximized()
+                self.apply_style()
+            # Snap to top without maximizing if released near the top.
+            elif self.y() < 10:
+                self.move(self.x(), 0)
+            
+            event.accept()
+        super().mouseReleaseEvent(event)
+
 
     async def do_async_task(self):
         return
@@ -369,13 +392,24 @@ class MainWindow(QWidget):
 
 
 
+
+
+
+
 async def main_async(window):
     asyncio.create_task(window.do_async_task())
     await asyncio.sleep(0)
 
 def main():
+    """Main entry point for the application."""
     try:
         app = QApplication(sys.argv)
+        
+        # Set the application font globally
+        font = QFont("Consolas", 12)
+        font.setBold(True)
+        app.setFont(font)
+        
         Pages.instigate()
         window = MainWindow()
         window.show()
@@ -386,7 +420,9 @@ def main():
         with loop:
             loop.create_task(main_async(window))
             loop.run_forever()
+            
     finally:
+        # Cleanup the temporary folder
         if os.path.exists(TEMP_FOLDER):
             shutil.rmtree(TEMP_FOLDER)
 
