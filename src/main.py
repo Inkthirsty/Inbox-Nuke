@@ -10,11 +10,11 @@ from PySide6.QtWidgets import (
     QFrame,
     QGraphicsDropShadowEffect,
     QHBoxLayout,
-    QSizePolicy,
 )
 from PySide6.QtCore import Qt, QPoint, QByteArray, QRect, QSize, QPointF
 from PySide6.QtGui import QColor, QMouseEvent, QFont, QPixmap, QIcon
 from qasync import QEventLoop
+from endpoints import Endpoints
 
 DIRECTORY = os.path.dirname(__file__)
 
