@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QGraphicsDropShadowEffect,
     QHBoxLayout,
+    QScrollArea,
 )
 from PySide6.QtCore import Qt, QPoint, QByteArray, QRect, QSize, QPointF
 from PySide6.QtGui import QColor, QMouseEvent, QFont, QPixmap, QIcon
@@ -62,23 +63,30 @@ class Page(QWidget):
 class Pages:
     class Home(Page):
         def _init_widgets(self):
-            layout = QVBoxLayout(self)
+            scroll = QScrollArea(self)
+            scroll.setWidgetResizable(True)
+
+            container = QWidget()
+            scroll.setWidget(container)
+
+            layout = QVBoxLayout(container)
             layout.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
             layout.addWidget(QLabel("Home Page"), alignment=Qt.AlignmentFlag.AlignHCenter)
 
             button_size = (200, 30)
-
             self.input = QLineEdit("Type something here")
-            layout.addWidget(self.input,  alignment=Qt.AlignmentFlag.AlignHCenter)
+            self.input.setMaximumWidth(200)
+            layout.addWidget(self.input, alignment=Qt.AlignmentFlag.AlignHCenter)
 
             self.async_btn = QPushButton("Run Async Task", flat=True)
             self.async_btn.setMinimumSize(*button_size)
             self.async_btn.setMaximumSize(*button_size)
             layout.addWidget(self.async_btn, alignment=Qt.AlignmentFlag.AlignHCenter)
-            
-            self.async_btn.clicked.connect(
-                lambda: asyncio.create_task(self.do_async_button())
-            )
+
+            self.async_btn.clicked.connect(lambda: asyncio.create_task(self.do_async_button()))
+
+            main_layout = QVBoxLayout(self)
+            main_layout.addWidget(scroll)
 
         async def do_async_button(self):
             print("Async button clicked!")
@@ -87,12 +95,40 @@ class Pages:
             self.async_btn.setEnabled(True)
             print("Button ready again!")
 
+
     class Emails(Page):
         def _init_widgets(self):
-            layout = QVBoxLayout(self)
-            layout.addWidget(QLabel("Emails Page"))
+            scroll = QScrollArea(self)
+            scroll.setWidgetResizable(True)
+
+            container = QWidget()
+            scroll.setWidget(container)
+
+            layout = QVBoxLayout(container)
+            layout.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
+            layout.addWidget(QLabel("Home Page"), alignment=Qt.AlignmentFlag.AlignHCenter)
+
+            button_size = (200, 30)
             self.input = QLineEdit("Type something here")
-            layout.addWidget(self.input)
+            self.input.setMaximumWidth(200)
+            layout.addWidget(self.input, alignment=Qt.AlignmentFlag.AlignHCenter)
+
+            self.async_btn = QPushButton("Run Async Task", flat=True)
+            self.async_btn.setMinimumSize(*button_size)
+            self.async_btn.setMaximumSize(*button_size)
+            layout.addWidget(self.async_btn, alignment=Qt.AlignmentFlag.AlignHCenter)
+
+            self.async_btn.clicked.connect(lambda: asyncio.create_task(self.do_async_button()))
+
+            main_layout = QVBoxLayout(self)
+            main_layout.addWidget(scroll)
+
+        async def do_async_button(self):
+            print("Async button clicked!")
+            self.async_btn.setEnabled(False)
+            await asyncio.sleep(3)
+            self.async_btn.setEnabled(True)
+            print("Button ready again!")
 
     class Settings(Page):
         def _init_widgets(self):
