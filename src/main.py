@@ -1,8 +1,16 @@
 import aiohttp, asyncio, sys, json, os, shutil
 from PySide6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QLabel, QLineEdit,
-    QStackedWidget, QPushButton, QFrame, QGraphicsDropShadowEffect,
-    QHBoxLayout, QSizePolicy
+    QApplication,
+    QWidget,
+    QVBoxLayout,
+    QLabel,
+    QLineEdit,
+    QStackedWidget,
+    QPushButton,
+    QFrame,
+    QGraphicsDropShadowEffect,
+    QHBoxLayout,
+    QSizePolicy,
 )
 from PySide6.QtCore import Qt, QPoint, QByteArray, QRect, QSize, QPointF
 from PySide6.QtGui import QColor, QMouseEvent, QFont, QPixmap, QIcon
@@ -32,10 +40,12 @@ COLOR_THEME = "#385389"
 TITLE = "Inbox Nuke"
 VERSION = "1.0.0"
 
+
 class Page(QWidget):
     """
     Base class for all pages in the application.
     """
+
     def __init__(self):
         super().__init__()
         self._init_widgets()
@@ -53,15 +63,22 @@ class Page(QWidget):
                 widget.setParent(None)
         self._init_widgets()
 
+
 class Pages:
     """
     Container for all application pages.
     """
+
     class Home(Page):
         def _init_widgets(self):
             layout = QVBoxLayout(self)
-            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
-            layout.addWidget(QLabel("Home Page"), alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
+            layout.setAlignment(
+                Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter
+            )
+            layout.addWidget(
+                QLabel("Home Page"),
+                alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
+            )
 
             self.input = QLineEdit("Type something here")
             layout.addWidget(self.input)
@@ -69,16 +86,26 @@ class Pages:
     class Emails(Page):
         def _init_widgets(self):
             layout = QVBoxLayout(self)
-            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
-            layout.addWidget(QLabel("Emails Page"), alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
+            layout.setAlignment(
+                Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter
+            )
+            layout.addWidget(
+                QLabel("Emails Page"),
+                alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
+            )
             self.input = QLineEdit("Type something here")
             layout.addWidget(self.input)
-    
+
     class Settings(Page):
         def _init_widgets(self):
             layout = QVBoxLayout(self)
-            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
-            layout.addWidget(QLabel("Settings Page"), alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
+            layout.setAlignment(
+                Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter
+            )
+            layout.addWidget(
+                QLabel("Settings Page"),
+                alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
+            )
             self.input = QLineEdit("Type something here")
             layout.addWidget(self.input)
 
@@ -88,6 +115,7 @@ class Pages:
         for name, page_cls in vars(cls).items():
             if isinstance(page_cls, type) and issubclass(page_cls, Page):
                 setattr(cls, name, page_cls())
+
 
 class MainWindow(QWidget):
     RESIZE_MARGIN = 8
@@ -99,14 +127,14 @@ class MainWindow(QWidget):
         self.resize(740, 460)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        
+
         # Initializing state variables for mouse events
         self._dragging = False
         self._resizing = False
         self._drag_start_pos = QPoint()
         self._resize_direction = None
         self._normal_geometry = self.geometry()
-        
+
         self._setup_ui()
         self._setup_connections()
         self._setup_mouse_events()
@@ -144,7 +172,7 @@ class MainWindow(QWidget):
         # Keep button sizes the same, but scale down the icons
         button_size = QSize(40, 30)
         icon_size = QSize(int(0.4 * 40), int(0.4 * 30))
-        
+
         self.btn_min.setIcon(QIcon(os.path.join(DIRECTORY, "assets/minus.png")))
         self.btn_min.setIconSize(icon_size)
         self.btn_max.setIcon(QIcon(os.path.join(DIRECTORY, "assets/square1.png")))
@@ -154,7 +182,8 @@ class MainWindow(QWidget):
 
         for button in (self.btn_min, self.btn_max, self.btn_close):
             button.setFixedSize(button_size)
-            button.setStyleSheet("""
+            button.setStyleSheet(
+                """
                 QPushButton {
                     background-color: transparent;
                     border: none;
@@ -163,7 +192,8 @@ class MainWindow(QWidget):
                     background-color: rgba(255,255,255,0.2);
                     border-radius: 12px;
                 }
-            """)
+            """
+            )
 
         title_layout.addWidget(self.btn_min, alignment=Qt.AlignmentFlag.AlignCenter)
         title_layout.addWidget(self.btn_max, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -189,7 +219,7 @@ class MainWindow(QWidget):
         self.btn_close.clicked.connect(self.close)
         self.btn_min.clicked.connect(self.showMinimized)
         self.btn_max.clicked.connect(self.toggleMaximizeRestore)
-    
+
     def _setup_mouse_events(self):
         """Enables mouse tracking for the window and title bar."""
         self.setMouseTracking(True)
@@ -211,8 +241,9 @@ class MainWindow(QWidget):
                 }}
                 QStackedWidget {{
                     background: qlineargradient(
-                        x1:0, y1:0, x2:1, y2:2,
+                        x1:0, y1:0, x2:1, y2:1,
                         stop:0 {COLOR_BACKGROUND},
+                        stop:0.6 {COLOR_FOREGROUND},
                         stop:1 {COLOR_FOREGROUND}
                     );
                     border-radius: 0px;
@@ -240,7 +271,7 @@ class MainWindow(QWidget):
                 }}
             """
             self.btn_max.setIcon(QIcon(os.path.join(DIRECTORY, "assets/square1.png")))
-        
+
         self.setStyleSheet(style)
 
     def toggleMaximizeRestore(self):
@@ -298,92 +329,128 @@ class MainWindow(QWidget):
         return Qt.CursorShape.ArrowCursor
 
     def mousePressEvent(self, event: QMouseEvent):
-        """Handles mouse press for dragging and resizing."""
         if event.button() == Qt.LeftButton:
-            pos = event.position().toPoint()
-            self._resize_direction = self.get_resize_direction(pos)
-            
-            # Handles dragging for both maximized and normal states
-            if self.title_bar.rect().contains(self.title_bar.mapFromGlobal(event.globalPosition().toPoint())):
-                if self.isMaximized():
-                    # Restore and reposition the window before starting the drag
-                    self.showNormal()
-                    global_pos = event.globalPosition().toPoint()
-                    new_x = global_pos.x() - self.width() // 2
-                    new_y = global_pos.y() - 10 
-                    self.move(new_x, new_y)
-                
+            global_pos = event.globalPosition().toPoint()
+            local_pos = event.position().toPoint()
+
+            # Check for drag on title bar before checking for resize.
+            if self.title_bar.rect().contains(self.title_bar.mapFromGlobal(global_pos)):
                 self._dragging = True
-                self._drag_start_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+                self._resizing = False
+
+                if self.isMaximized():
+                    # Store relative position for un-maximizing
+                    self._drag_ratio_x = local_pos.x() / self.width()
+                    self._drag_ratio_y = local_pos.y() / self.height()
+
+                    self.showNormal()
+                    self.apply_style()
+
+                    # Calculate the new position to restore to
+                    new_x = int(global_pos.x() - self._drag_ratio_x * self.width())
+                    new_y = int(global_pos.y() - self._drag_ratio_y * self.height())
+
+                    # Move the window
+                    self.move(new_x, new_y)
+
+                    # CORRECT CALCULATION for drag start position:
+                    # We calculate the offset relative to the new, known position.
+                    self._drag_start_pos = global_pos - QPoint(new_x, new_y)
+                else:
+                    self._drag_start_pos = global_pos - self.frameGeometry().topLeft()
+
                 event.accept()
-            # Handle resizing
-            elif self._resize_direction != Qt.CursorShape.ArrowCursor:
+                return
+
+            # Handle resizing only if not dragging
+            self._resize_direction = self.get_resize_direction(local_pos)
+            if self._resize_direction != Qt.CursorShape.ArrowCursor:
                 self._resizing = True
-                self._drag_start_pos = event.globalPosition().toPoint()
+                self._dragging = False
+                self._drag_start_pos = global_pos
                 event.accept()
-                
+
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent):
-        """Handles mouse movement for dragging and resizing."""
-        pos = event.position().toPoint()
         global_pos = event.globalPosition().toPoint()
 
-        # Handle dragging
+        # Dragging logic
         if self._dragging:
             new_pos = global_pos - self._drag_start_pos
-            self.move(new_pos)
+
+            screen_geometry = QApplication.primaryScreen().availableGeometry()
+            padding = 50
+
+            # Clamping X-coordinate
+            new_x = max(
+                -self.width() + padding,
+                min(new_pos.x(), screen_geometry.width() - padding),
+            )
+
+            # Clamping Y-coordinate
+            new_y = max(0, min(new_pos.y(), screen_geometry.height() - padding))
+
+            self.move(new_x, new_y)
+
             event.accept()
             return
-        
-        # Handle resizing
-        elif self._resizing:
-            diff = global_pos - self._drag_start_pos
-            new_rect = self.geometry()
-            
-            if self._resize_direction == Qt.CursorShape.SizeHorCursor:
-                new_rect.setRight(new_rect.right() + diff.x())
-            elif self._resize_direction == Qt.CursorShape.SizeVerCursor:
-                new_rect.setBottom(new_rect.bottom() + diff.y())
-            elif self._resize_direction == Qt.CursorShape.SizeFDiagCursor: # SE or NW
-                new_rect.setRight(new_rect.right() + diff.x())
-                new_rect.setBottom(new_rect.bottom() + diff.y())
-            elif self._resize_direction == Qt.CursorShape.SizeBDiagCursor: # NE or SW
-                new_rect.setRight(new_rect.right() + diff.x())
-                new_rect.setTop(new_rect.top() + diff.y())
 
-            self.setGeometry(new_rect)
+        # Resizing logic
+        if self._resizing:
+            diff = global_pos - self._drag_start_pos
+            rect = self.geometry()
+
+            if self._resize_direction == Qt.CursorShape.SizeHorCursor:
+                rect.setRight(rect.right() + diff.x())
+            elif self._resize_direction == Qt.CursorShape.SizeVerCursor:
+                rect.setBottom(rect.bottom() + diff.y())
+            elif self._resize_direction == Qt.CursorShape.SizeFDiagCursor:
+                rect.setRight(rect.right() + diff.x())
+                rect.setBottom(rect.bottom() + diff.y())
+            elif self._resize_direction == Qt.CursorShape.SizeBDiagCursor:
+                rect.setRight(rect.right() + diff.x())
+                rect.setTop(rect.top() + diff.y())
+
+            self.setGeometry(rect)
             self._drag_start_pos = global_pos
             event.accept()
             return
 
-        # Change cursor on hover for resizing
+        # Cursor change logic when not dragging or resizing
         if not self.isMaximized():
-            cursor = self.get_resize_direction(pos)
-            self.setCursor(cursor)
+            self.setCursor(self.get_resize_direction(event.position().toPoint()))
         else:
             self.setCursor(Qt.CursorShape.ArrowCursor)
 
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent):
-        """Handles mouse release to stop dragging and snapping."""
         if event.button() == Qt.LeftButton:
             self._dragging = False
             self._resizing = False
             self.setCursor(Qt.CursorShape.ArrowCursor)
 
-            # Snap to maximize if dragged to top and cursor is at the top.
+            # Snap to top to maximize if released at very top
             if self.y() <= 0 and event.globalPosition().y() <= 5:
+                self._normal_geometry = self.geometry()
                 self.showMaximized()
                 self.apply_style()
-            # Snap to top without maximizing if released near the top.
             elif self.y() < 10:
                 self.move(self.x(), 0)
-            
+
             event.accept()
+
         super().mouseReleaseEvent(event)
 
+    def mouseDoubleClickEvent(self, event: QMouseEvent):
+        if event.button() == Qt.LeftButton:
+            if self.title_bar.rect().contains(
+                self.title_bar.mapFromGlobal(event.globalPosition().toPoint())
+            ):
+                self.toggleMaximizeRestore()
+            event.accept()
+        super().mouseDoubleClickEvent(event)
 
     async def do_async_task(self):
         return
@@ -391,25 +458,21 @@ class MainWindow(QWidget):
             await asyncio.sleep(1)
 
 
-
-
-
-
-
 async def main_async(window):
     asyncio.create_task(window.do_async_task())
     await asyncio.sleep(0)
+
 
 def main():
     """Main entry point for the application."""
     try:
         app = QApplication(sys.argv)
-        
+
         # Set the application font globally
         font = QFont("Consolas", 12)
         font.setBold(True)
         app.setFont(font)
-        
+
         Pages.instigate()
         window = MainWindow()
         window.show()
@@ -420,11 +483,12 @@ def main():
         with loop:
             loop.create_task(main_async(window))
             loop.run_forever()
-            
+
     finally:
         # Cleanup the temporary folder
         if os.path.exists(TEMP_FOLDER):
             shutil.rmtree(TEMP_FOLDER)
+
 
 if __name__ == "__main__":
     main()
