@@ -33,6 +33,7 @@ COLOR_THEME = "#385389"
 TITLE = "Inbox Nuke"
 VERSION = "1.0.0"
 
+# -------------------- Page Classes --------------------
 class Page(QWidget):
     def __init__(self):
         super().__init__()
@@ -90,7 +91,7 @@ class Pages:
             if isinstance(page_cls, type) and issubclass(page_cls, Page):
                 setattr(cls, name, page_cls())
 
-
+# -------------------- Main Window --------------------
 class MainWindow(QWidget):
     RESIZE_MARGIN = 8
 
@@ -111,6 +112,7 @@ class MainWindow(QWidget):
         self._setup_mouse_events()
         self.apply_style()
 
+    # --- UI Setup ---
     def _setup_ui(self):
         self.container = QFrame(self)
         self.container.setObjectName("container")
@@ -171,6 +173,7 @@ class MainWindow(QWidget):
                 self.stack.addWidget(obj)
         self.switchPage(Pages.Home)
 
+    # --- Connections ---
     def _setup_connections(self):
         self.btn_close.clicked.connect(self.close)
         self.btn_min.clicked.connect(self.showMinimized)
@@ -182,6 +185,7 @@ class MainWindow(QWidget):
         for widget in self.findChildren(QWidget):
             widget.setMouseTracking(True)
 
+    # --- Style ---
     def apply_style(self):
         if self.isMaximized():
             style = f"""
@@ -235,6 +239,7 @@ class MainWindow(QWidget):
             self.showMaximized()
             self.apply_style()
 
+    # --- Events ---
     def resizeEvent(self, event):
         if not self.isMaximized():
             self._normal_geometry = self.geometry()
@@ -310,10 +315,7 @@ class MainWindow(QWidget):
             new_pos = global_pos - self._drag_start_pos
             screen_geometry = QApplication.primaryScreen().availableGeometry()
             padding = 50
-            new_x = max(
-                -self.width() + padding,
-                min(new_pos.x(), screen_geometry.width() - padding),
-            )
+            new_x = max(-self.width() + padding, min(new_pos.x(), screen_geometry.width() - padding))
             new_y = max(0, min(new_pos.y(), screen_geometry.height() - padding))
             self.move(new_x, new_y)
             event.accept()
@@ -357,18 +359,16 @@ class MainWindow(QWidget):
 
     def mouseDoubleClickEvent(self, event: QMouseEvent):
         if event.button() == Qt.LeftButton:
-            if self.title_bar.rect().contains(
-                self.title_bar.mapFromGlobal(event.globalPosition().toPoint())
-            ):
+            if self.title_bar.rect().contains(self.title_bar.mapFromGlobal(event.globalPosition().toPoint())):
                 self.toggleMaximizeRestore()
             event.accept()
         super().mouseDoubleClickEvent(event)
 
     async def do_async_task(self):
-        return
         while True:
             await asyncio.sleep(1)
 
+# -------------------- Async Config --------------------
 class AsyncSynchronizedDict:
     def __init__(self, filename):
         self.filename = filename
@@ -409,12 +409,11 @@ class AsyncSynchronizedDict:
     def __repr__(self):
         return f"AsyncSynchronizedDict({self.data})"
 
+# -------------------- Main Async --------------------
 async def main_async(window):
     async with aiohttp.ClientSession() as session:
         CONFIG = AsyncSynchronizedDict(CONFIG_PATH)
-
         await CONFIG.load()
-
         if not CONFIG.get_data():
             try:
                 async with session.get("https://github.com/Inkthirsty/Inbox-Nuke/raw/refs/heads/main/src/config.json") as response:
@@ -429,7 +428,7 @@ async def main_async(window):
     asyncio.create_task(window.do_async_task())
     await asyncio.sleep(0)
 
-
+# -------------------- Entry Point --------------------
 def main():
     try:
         app = QApplication(sys.argv)
@@ -447,7 +446,6 @@ def main():
     finally:
         if os.path.exists(TEMP_PATH):
             shutil.rmtree(TEMP_PATH)
-
 
 if __name__ == "__main__":
     main()
