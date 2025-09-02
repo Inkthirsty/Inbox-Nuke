@@ -24,11 +24,11 @@ from qasync import QEventLoop
 DIRECTORY = os.path.dirname(__file__)
 CONFIG_FILENAME = "config.json"
 CONFIG_PATH = os.path.join(DIRECTORY, CONFIG_FILENAME)
-TEMP_FOLDER = os.path.join(DIRECTORY, "temp")
+TEMP_PATH = os.path.join(DIRECTORY, "temp")
 
-if os.path.exists(TEMP_FOLDER):
-    shutil.rmtree(TEMP_FOLDER)
-os.makedirs(TEMP_FOLDER, exist_ok=True)
+if os.path.exists(TEMP_PATH):
+    shutil.rmtree(TEMP_PATH)
+os.makedirs(TEMP_PATH, exist_ok=True)
 
 COLOR_BACKGROUND = "#1c1c1c"
 COLOR_FOREGROUND = "#162034"
@@ -376,6 +376,11 @@ class MainWindow(QWidget):
 
 
 async def main_async(window):
+    async with aiohttp.ClientSession() as session:
+        if not os.path.exists(CONFIG_PATH):
+            
+            async with session.get("") as response:
+                resp = json.loads(await response.text())
     asyncio.create_task(window.do_async_task())
     await asyncio.sleep(0)
 
@@ -395,8 +400,8 @@ def main():
             loop.create_task(main_async(window))
             loop.run_forever()
     finally:
-        if os.path.exists(TEMP_FOLDER):
-            shutil.rmtree(TEMP_FOLDER)
+        if os.path.exists(TEMP_PATH):
+            shutil.rmtree(TEMP_PATH)
 
 
 if __name__ == "__main__":
