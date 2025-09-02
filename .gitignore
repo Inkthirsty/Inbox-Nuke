@@ -1,4 +1,3 @@
-config.json
 *.bat
 *.spec
 *.exe
@@ -6,5 +5,4 @@ config.json
 **/temp/
 **/dist/
 **/build/
-src/config.json
 src/config.json
