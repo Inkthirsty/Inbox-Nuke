@@ -70,6 +70,8 @@ class Pages:
             layout.addWidget(self.input)
 
             self.async_btn = QPushButton("Run Async Task")
+            self.async_btn.setMinimumSize(200, 30)
+            self.async_btn.setMaximumSize(200, 30)
             layout.addWidget(self.async_btn)
             
             self.async_btn.clicked.connect(
@@ -279,27 +281,29 @@ class MainWindow(QWidget):
 
     def get_resize_direction(self, pos: QPoint):
         rect = self.rect()
-        left = pos.x() <= rect.left() + self.RESIZE_MARGIN
-        right = pos.x() >= rect.right() - self.RESIZE_MARGIN
-        top = pos.y() <= rect.top() + self.RESIZE_MARGIN
-        bottom = pos.y() >= rect.bottom() - self.RESIZE_MARGIN
+        left = pos.x() <= self.RESIZE_MARGIN
+        right = pos.x() >= rect.width() - self.RESIZE_MARGIN
+        top = pos.y() <= self.RESIZE_MARGIN
+        bottom = pos.y() >= rect.height() - self.RESIZE_MARGIN
+
         if top and left:
-            return Qt.CursorShape.SizeFDiagCursor
-        elif top and right:
-            return Qt.CursorShape.SizeBDiagCursor
-        elif bottom and left:
-            return Qt.CursorShape.SizeBDiagCursor
-        elif bottom and right:
-            return Qt.CursorShape.SizeFDiagCursor
-        elif top:
-            return Qt.CursorShape.SizeVerCursor
-        elif bottom:
-            return Qt.CursorShape.SizeVerCursor
-        elif left:
+            return Qt.CursorShape.SizeFDiagCursor  # top-left
+        if top and right:
+            return Qt.CursorShape.SizeBDiagCursor  # top-right
+        if bottom and left:
+            return Qt.CursorShape.SizeBDiagCursor  # bottom-left
+        if bottom and right:
+            return Qt.CursorShape.SizeFDiagCursor  # bottom-right
+        if left:
             return Qt.CursorShape.SizeHorCursor
-        elif right:
+        if right:
             return Qt.CursorShape.SizeHorCursor
+        if top:
+            return Qt.CursorShape.SizeVerCursor
+        if bottom:
+            return Qt.CursorShape.SizeVerCursor
         return Qt.CursorShape.ArrowCursor
+
 
     def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.LeftButton:
@@ -331,6 +335,7 @@ class MainWindow(QWidget):
 
     def mouseMoveEvent(self, event: QMouseEvent):
         global_pos = event.globalPosition().toPoint()
+
         if self._dragging:
             new_pos = global_pos - self._drag_start_pos
             screen_geometry = QApplication.primaryScreen().availableGeometry()
@@ -340,28 +345,41 @@ class MainWindow(QWidget):
             self.move(new_x, new_y)
             event.accept()
             return
+
         if self._resizing:
             diff = global_pos - self._drag_start_pos
             rect = self.geometry()
+
             if self._resize_direction == Qt.CursorShape.SizeHorCursor:
-                rect.setRight(rect.right() + diff.x())
+                if event.position().x() < rect.width() / 2:  # resizing from left
+                    rect.setLeft(rect.left() + diff.x())
+                else:  # resizing from right
+                    rect.setRight(rect.right() + diff.x())
             elif self._resize_direction == Qt.CursorShape.SizeVerCursor:
-                rect.setBottom(rect.bottom() + diff.y())
+                if event.position().y() < rect.height() / 2:  # resizing from top
+                    rect.setTop(rect.top() + diff.y())
+                else:  # resizing from bottom
+                    rect.setBottom(rect.bottom() + diff.y())
             elif self._resize_direction == Qt.CursorShape.SizeFDiagCursor:
-                rect.setRight(rect.right() + diff.x())
-                rect.setBottom(rect.bottom() + diff.y())
+                rect.setLeft(rect.left() + diff.x())
+                rect.setTop(rect.top() + diff.y())
             elif self._resize_direction == Qt.CursorShape.SizeBDiagCursor:
                 rect.setRight(rect.right() + diff.x())
-                rect.setTop(rect.top() + diff.y())
+                rect.setBottom(rect.bottom() + diff.y())
+
             self.setGeometry(rect)
             self._drag_start_pos = global_pos
             event.accept()
             return
+
         if not self.isMaximized():
             self.setCursor(self.get_resize_direction(event.position().toPoint()))
         else:
             self.setCursor(Qt.CursorShape.ArrowCursor)
+
         super().mouseMoveEvent(event)
+
+
 
     def mouseReleaseEvent(self, event: QMouseEvent):
         if event.button() == Qt.LeftButton:
