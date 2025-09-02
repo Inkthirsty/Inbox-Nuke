@@ -5,6 +5,5 @@
 **/temp/
 **/dist/
 **/build/
+**/__pycache__/
 src/config.json
-src/config.json
-src/__pycache__/endpoints.cpython-310.pyc
