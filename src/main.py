@@ -416,7 +416,7 @@ async def main_async(window):
         await CONFIG.load()
         if not CONFIG.get_data():
             try:
-                async with session.get("https://github.com/Inkthirsty/Inbox-Nuke/raw/refs/heads/main/src/config.json") as response:
+                async with session.get("https://raw.githubusercontent.com/Inkthirsty/Inbox-Nuke/refs/heads/main/src/config.example.json") as response:
                     response.raise_for_status()
                     resp = json.loads(await response.text())
                     await CONFIG.update(resp)
