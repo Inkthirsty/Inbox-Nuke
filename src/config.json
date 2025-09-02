@@ -1,1 +1,5 @@
-{}
+{
+    "test": "what",
+    "another_key": "another_value",
+    "airplane": true
+}

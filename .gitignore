@@ -6,3 +6,4 @@ config.json
 **/temp/
 **/dist/
 **/build/
+src/config.json
