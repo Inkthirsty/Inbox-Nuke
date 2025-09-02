@@ -14,13 +14,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QPoint, QByteArray, QRect, QSize, QPointF
 from PySide6.QtGui import QColor, QMouseEvent, QFont, QPixmap, QIcon
-
-# Import qasync to run asyncio event loop
-try:
-    from qasync import QEventLoop
-except ImportError:
-    print("qasync not found. Please install it with 'pip install qasync'")
-    sys.exit(1)
+from qasync import QEventLoop
 
 
 DIRECTORY = os.path.dirname(__file__)
