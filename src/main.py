@@ -42,6 +42,14 @@ class Page(QWidget):
     def _init_widgets(self):
         pass
 
+    async def on_show(self):
+        """Override for async setup when shown"""
+        pass
+
+    async def on_hide(self):
+        """Override for async cleanup when hidden"""
+        pass
+
     def reset(self):
         for i in reversed(range(self.layout().count() if self.layout() else 0)):
             item = self.layout().takeAt(i)
@@ -56,32 +64,34 @@ class Pages:
         def _init_widgets(self):
             layout = QVBoxLayout(self)
             layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
-            layout.addWidget(
-                QLabel("Home Page"),
-                alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
-            )
+            layout.addWidget(QLabel("Home Page"), alignment=Qt.AlignmentFlag.AlignHCenter)
+
             self.input = QLineEdit("Type something here")
             layout.addWidget(self.input)
+
+            self.async_btn = QPushButton("Run Async Task")
+            layout.addWidget(self.async_btn)
+            
+            self.async_btn.clicked.connect(
+                lambda: asyncio.create_task(self.do_async_button())
+            )
+
+        async def do_async_button(self):
+            print("Async button clicked, waiting...")
+            await asyncio.sleep(1)
+            print("Async button finished!")
 
     class Emails(Page):
         def _init_widgets(self):
             layout = QVBoxLayout(self)
-            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
-            layout.addWidget(
-                QLabel("Emails Page"),
-                alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
-            )
+            layout.addWidget(QLabel("Emails Page"))
             self.input = QLineEdit("Type something here")
             layout.addWidget(self.input)
 
     class Settings(Page):
         def _init_widgets(self):
             layout = QVBoxLayout(self)
-            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
-            layout.addWidget(
-                QLabel("Settings Page"),
-                alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
-            )
+            layout.addWidget(QLabel("Settings Page"))
             self.input = QLineEdit("Type something here")
             layout.addWidget(self.input)
 
@@ -97,10 +107,11 @@ class MainWindow(QWidget):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(TITLE)
+        self.setWindowTitle(f"{TITLE} (v{VERSION})")
         self.setMinimumSize(740, 460)
         self.resize(740, 460)
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint)
+        self.setWindowIcon(QIcon(os.path.join(DIRECTORY, "assets/icon.ico")))
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self._dragging = False
         self._resizing = False
@@ -124,6 +135,7 @@ class MainWindow(QWidget):
         glow.setBlurRadius(40)
         glow.setOffset(0)
         self.container.setGraphicsEffect(glow)
+
         self.title_bar = QFrame()
         self.title_bar.setObjectName("titlebar")
         self.title_bar.setFixedHeight(40)
@@ -160,18 +172,19 @@ class MainWindow(QWidget):
         title_layout.addWidget(self.btn_min, alignment=Qt.AlignmentFlag.AlignCenter)
         title_layout.addWidget(self.btn_max, alignment=Qt.AlignmentFlag.AlignCenter)
         title_layout.addWidget(self.btn_close, alignment=Qt.AlignmentFlag.AlignCenter)
+
         self.stack = QStackedWidget()
         container_layout.addWidget(self.title_bar)
         container_layout.addWidget(self.stack)
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addWidget(self.container)
+
         self.pages = {}
         for name, obj in vars(Pages).items():
             if isinstance(obj, Page):
                 self.pages[name] = obj
                 self.stack.addWidget(obj)
-        self.switchPage(Pages.Home)
 
     # --- Connections ---
     def _setup_connections(self):
@@ -220,8 +233,9 @@ class MainWindow(QWidget):
                 }}
                 QStackedWidget {{
                     background: qlineargradient(
-                        x1:0, y1:0, x2:1, y2:2,
+                        x1:0, y1:0, x2:1, y2:1,
                         stop:0 {COLOR_BACKGROUND},
+                        stop:0.6 {COLOR_FOREGROUND},
                         stop:1 {COLOR_FOREGROUND}
                     );
                     border-bottom-left-radius: 12px;
@@ -239,7 +253,20 @@ class MainWindow(QWidget):
             self.showMaximized()
             self.apply_style()
 
-    # --- Events ---
+    # --- Page Switching ---
+    async def switchPage(self, page: Page):
+        current = self.getPage()
+        if current and hasattr(current, "on_hide"):
+            await current.on_hide()
+        if self.getPage() != page:
+            self.stack.setCurrentWidget(page)
+            if hasattr(page, "on_show"):
+                await page.on_show()
+
+    def getPage(self) -> Page:
+        return self.stack.currentWidget()
+
+    # --- Events (unchanged from your original) ---
     def resizeEvent(self, event):
         if not self.isMaximized():
             self._normal_geometry = self.geometry()
@@ -249,13 +276,6 @@ class MainWindow(QWidget):
         if not self.isMaximized():
             self._normal_geometry = self.geometry()
         super().moveEvent(event)
-
-    def getPage(self) -> Page:
-        return self.stack.currentWidget()
-
-    def switchPage(self, page: Page):
-        if self.getPage() != page:
-            self.stack.setCurrentWidget(page)
 
     def get_resize_direction(self, pos: QPoint):
         rect = self.rect()
@@ -364,6 +384,7 @@ class MainWindow(QWidget):
             event.accept()
         super().mouseDoubleClickEvent(event)
 
+    # --- Dummy Async Loop ---
     async def do_async_task(self):
         while True:
             await asyncio.sleep(1)
@@ -432,6 +453,7 @@ async def main_async(window):
 def main():
     try:
         app = QApplication(sys.argv)
+        app.setWindowIcon(QIcon(os.path.join(DIRECTORY, "assets/icon.ico")))
         font = QFont("Consolas", 12)
         font.setBold(True)
         app.setFont(font)
@@ -441,6 +463,7 @@ def main():
         loop = QEventLoop(app)
         asyncio.set_event_loop(loop)
         with loop:
+            loop.create_task(window.switchPage(Pages.Home))
             loop.create_task(main_async(window))
             loop.run_forever()
     finally:
