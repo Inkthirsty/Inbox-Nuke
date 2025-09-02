@@ -1,4 +1,9 @@
-import aiohttp, asyncio, sys, json, os, shutil
+import aiohttp
+import asyncio
+import sys
+import json
+import os
+import shutil
 from PySide6.QtWidgets import (
     QApplication,
     QWidget,
@@ -16,13 +21,11 @@ from PySide6.QtCore import Qt, QPoint, QByteArray, QRect, QSize, QPointF
 from PySide6.QtGui import QColor, QMouseEvent, QFont, QPixmap, QIcon
 from qasync import QEventLoop
 
-
 DIRECTORY = os.path.dirname(__file__)
-
 CONFIG_FILENAME = "config.json"
 CONFIG_PATH = os.path.join(DIRECTORY, CONFIG_FILENAME)
-
 TEMP_FOLDER = os.path.join(DIRECTORY, "temp")
+
 if os.path.exists(TEMP_FOLDER):
     shutil.rmtree(TEMP_FOLDER)
 os.makedirs(TEMP_FOLDER, exist_ok=True)
@@ -36,20 +39,14 @@ VERSION = "1.0.0"
 
 
 class Page(QWidget):
-    """
-    Base class for all pages in the application.
-    """
-
     def __init__(self):
         super().__init__()
         self._init_widgets()
 
     def _init_widgets(self):
-        # Placeholder for widgets in child classes
         pass
 
     def reset(self):
-        # Reset the page by clearing the layout and re-initializing widgets
         for i in reversed(range(self.layout().count() if self.layout() else 0)):
             item = self.layout().takeAt(i)
             widget = item.widget()
@@ -59,30 +56,21 @@ class Page(QWidget):
 
 
 class Pages:
-    """
-    Container for all application pages.
-    """
-
     class Home(Page):
         def _init_widgets(self):
             layout = QVBoxLayout(self)
-            layout.setAlignment(
-                Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter
-            )
+            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
             layout.addWidget(
                 QLabel("Home Page"),
                 alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
             )
-
             self.input = QLineEdit("Type something here")
             layout.addWidget(self.input)
 
     class Emails(Page):
         def _init_widgets(self):
             layout = QVBoxLayout(self)
-            layout.setAlignment(
-                Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter
-            )
+            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
             layout.addWidget(
                 QLabel("Emails Page"),
                 alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
@@ -93,9 +81,7 @@ class Pages:
     class Settings(Page):
         def _init_widgets(self):
             layout = QVBoxLayout(self)
-            layout.setAlignment(
-                Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter
-            )
+            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
             layout.addWidget(
                 QLabel("Settings Page"),
                 alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
@@ -105,7 +91,6 @@ class Pages:
 
     @classmethod
     def instigate(cls):
-        """Instantiate all page classes."""
         for name, page_cls in vars(cls).items():
             if isinstance(page_cls, type) and issubclass(page_cls, Page):
                 setattr(cls, name, page_cls())
@@ -121,59 +106,46 @@ class MainWindow(QWidget):
         self.resize(740, 460)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-
-        # Initializing state variables for mouse events
         self._dragging = False
         self._resizing = False
         self._drag_start_pos = QPoint()
         self._resize_direction = None
         self._normal_geometry = self.geometry()
-
         self._setup_ui()
         self._setup_connections()
         self._setup_mouse_events()
-
         self.apply_style()
 
     def _setup_ui(self):
-        """Sets up the main UI components."""
         self.container = QFrame(self)
         self.container.setObjectName("container")
         container_layout = QVBoxLayout(self.container)
         container_layout.setContentsMargins(0, 0, 0, 0)
         container_layout.setSpacing(0)
-
         glow = QGraphicsDropShadowEffect()
         glow.setColor(QColor(COLOR_THEME))
         glow.setBlurRadius(40)
         glow.setOffset(0)
         self.container.setGraphicsEffect(glow)
-
         self.title_bar = QFrame()
         self.title_bar.setObjectName("titlebar")
         self.title_bar.setFixedHeight(40)
         title_layout = QHBoxLayout(self.title_bar)
         title_layout.setContentsMargins(10, 0, 10, 0)
-
         self.title_label = QLabel(f"{TITLE} (v{VERSION})")
         title_layout.addWidget(self.title_label)
         title_layout.addStretch()
-
         self.btn_min = QPushButton()
         self.btn_max = QPushButton()
         self.btn_close = QPushButton()
-
-        # Keep button sizes the same, but scale down the icons
         button_size = QSize(40, 30)
         icon_size = QSize(int(0.4 * 40), int(0.4 * 30))
-
         self.btn_min.setIcon(QIcon(os.path.join(DIRECTORY, "assets/minus.png")))
         self.btn_min.setIconSize(icon_size)
         self.btn_max.setIcon(QIcon(os.path.join(DIRECTORY, "assets/square1.png")))
         self.btn_max.setIconSize(icon_size)
         self.btn_close.setIcon(QIcon(os.path.join(DIRECTORY, "assets/cross.png")))
         self.btn_close.setIconSize(icon_size)
-
         for button in (self.btn_min, self.btn_max, self.btn_close):
             button.setFixedSize(button_size)
             button.setStyleSheet(
@@ -188,19 +160,15 @@ class MainWindow(QWidget):
                 }
             """
             )
-
         title_layout.addWidget(self.btn_min, alignment=Qt.AlignmentFlag.AlignCenter)
         title_layout.addWidget(self.btn_max, alignment=Qt.AlignmentFlag.AlignCenter)
         title_layout.addWidget(self.btn_close, alignment=Qt.AlignmentFlag.AlignCenter)
-
         self.stack = QStackedWidget()
         container_layout.addWidget(self.title_bar)
         container_layout.addWidget(self.stack)
-
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addWidget(self.container)
-
         self.pages = {}
         for name, obj in vars(Pages).items():
             if isinstance(obj, Page):
@@ -209,20 +177,17 @@ class MainWindow(QWidget):
         self.switchPage(Pages.Home)
 
     def _setup_connections(self):
-        """Connects button signals to slots."""
         self.btn_close.clicked.connect(self.close)
         self.btn_min.clicked.connect(self.showMinimized)
         self.btn_max.clicked.connect(self.toggleMaximizeRestore)
 
     def _setup_mouse_events(self):
-        """Enables mouse tracking for the window and title bar."""
         self.setMouseTracking(True)
         self.title_bar.setMouseTracking(True)
         for widget in self.findChildren(QWidget):
             widget.setMouseTracking(True)
 
     def apply_style(self):
-        """Applies the appropriate stylesheet based on window state."""
         if self.isMaximized():
             style = f"""
                 QFrame#container {{
@@ -265,11 +230,9 @@ class MainWindow(QWidget):
                 }}
             """
             self.btn_max.setIcon(QIcon(os.path.join(DIRECTORY, "assets/square1.png")))
-
         self.setStyleSheet(style)
 
     def toggleMaximizeRestore(self):
-        """Toggles between maximized and normal window states."""
         if self.isMaximized():
             self.showNormal()
             self.apply_style()
@@ -278,13 +241,11 @@ class MainWindow(QWidget):
             self.apply_style()
 
     def resizeEvent(self, event):
-        """Updates normal geometry on resize."""
         if not self.isMaximized():
             self._normal_geometry = self.geometry()
         super().resizeEvent(event)
 
     def moveEvent(self, event):
-        """Updates normal geometry on move."""
         if not self.isMaximized():
             self._normal_geometry = self.geometry()
         super().moveEvent(event)
@@ -297,13 +258,11 @@ class MainWindow(QWidget):
             self.stack.setCurrentWidget(page)
 
     def get_resize_direction(self, pos: QPoint):
-        """Determine the direction of the resize based on mouse position."""
         rect = self.rect()
         left = pos.x() <= rect.left() + self.RESIZE_MARGIN
         right = pos.x() >= rect.right() - self.RESIZE_MARGIN
         top = pos.y() <= rect.top() + self.RESIZE_MARGIN
         bottom = pos.y() >= rect.bottom() - self.RESIZE_MARGIN
-
         if top and left:
             return Qt.CursorShape.SizeFDiagCursor
         elif top and right:
@@ -326,75 +285,47 @@ class MainWindow(QWidget):
         if event.button() == Qt.LeftButton:
             global_pos = event.globalPosition().toPoint()
             local_pos = event.position().toPoint()
-
-            # Check for drag on title bar before checking for resize.
             if self.title_bar.rect().contains(self.title_bar.mapFromGlobal(global_pos)):
                 self._dragging = True
                 self._resizing = False
-
                 if self.isMaximized():
-                    # Store relative position for un-maximizing
                     self._drag_ratio_x = local_pos.x() / self.width()
                     self._drag_ratio_y = local_pos.y() / self.height()
-
                     self.showNormal()
                     self.apply_style()
-
-                    # Calculate the new position to restore to
                     new_x = int(global_pos.x() - self._drag_ratio_x * self.width())
                     new_y = int(global_pos.y() - self._drag_ratio_y * self.height())
-
-                    # Move the window
                     self.move(new_x, new_y)
-
-                    # CORRECT CALCULATION for drag start position:
-                    # We calculate the offset relative to the new, known position.
                     self._drag_start_pos = global_pos - QPoint(new_x, new_y)
                 else:
                     self._drag_start_pos = global_pos - self.frameGeometry().topLeft()
-
                 event.accept()
                 return
-
-            # Handle resizing only if not dragging
             self._resize_direction = self.get_resize_direction(local_pos)
             if self._resize_direction != Qt.CursorShape.ArrowCursor:
                 self._resizing = True
                 self._dragging = False
                 self._drag_start_pos = global_pos
                 event.accept()
-
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent):
         global_pos = event.globalPosition().toPoint()
-
-        # Dragging logic
         if self._dragging:
             new_pos = global_pos - self._drag_start_pos
-
             screen_geometry = QApplication.primaryScreen().availableGeometry()
             padding = 50
-
-            # Clamping X-coordinate
             new_x = max(
                 -self.width() + padding,
                 min(new_pos.x(), screen_geometry.width() - padding),
             )
-
-            # Clamping Y-coordinate
             new_y = max(0, min(new_pos.y(), screen_geometry.height() - padding))
-
             self.move(new_x, new_y)
-
             event.accept()
             return
-
-        # Resizing logic
         if self._resizing:
             diff = global_pos - self._drag_start_pos
             rect = self.geometry()
-
             if self._resize_direction == Qt.CursorShape.SizeHorCursor:
                 rect.setRight(rect.right() + diff.x())
             elif self._resize_direction == Qt.CursorShape.SizeVerCursor:
@@ -405,18 +336,14 @@ class MainWindow(QWidget):
             elif self._resize_direction == Qt.CursorShape.SizeBDiagCursor:
                 rect.setRight(rect.right() + diff.x())
                 rect.setTop(rect.top() + diff.y())
-
             self.setGeometry(rect)
             self._drag_start_pos = global_pos
             event.accept()
             return
-
-        # Cursor change logic when not dragging or resizing
         if not self.isMaximized():
             self.setCursor(self.get_resize_direction(event.position().toPoint()))
         else:
             self.setCursor(Qt.CursorShape.ArrowCursor)
-
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent):
@@ -424,17 +351,13 @@ class MainWindow(QWidget):
             self._dragging = False
             self._resizing = False
             self.setCursor(Qt.CursorShape.ArrowCursor)
-
-            # Snap to top to maximize if released at very top
             if self.y() <= 0 and event.globalPosition().y() <= 5:
                 self._normal_geometry = self.geometry()
                 self.showMaximized()
                 self.apply_style()
             elif self.y() < 10:
                 self.move(self.x(), 0)
-
             event.accept()
-
         super().mouseReleaseEvent(event)
 
     def mouseDoubleClickEvent(self, event: QMouseEvent):
@@ -458,28 +381,20 @@ async def main_async(window):
 
 
 def main():
-    """Main entry point for the application."""
     try:
         app = QApplication(sys.argv)
-
-        # Set the application font globally
         font = QFont("Consolas", 12)
         font.setBold(True)
         app.setFont(font)
-
         Pages.instigate()
         window = MainWindow()
         window.show()
-
         loop = QEventLoop(app)
         asyncio.set_event_loop(loop)
-
         with loop:
             loop.create_task(main_async(window))
             loop.run_forever()
-
     finally:
-        # Cleanup the temporary folder
         if os.path.exists(TEMP_FOLDER):
             shutil.rmtree(TEMP_FOLDER)
 
