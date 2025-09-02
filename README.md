@@ -1,7 +1,7 @@
 # Inbox Nuke
 please only use this for educational and experimental purposes as I do not condone misuse!
 
-## Setup
+## Setup (Python 3.10)
 * Create a venv with `python -m venv venv`
 * Activate it
   * `.\venv\Scripts\Activate.ps1` on Windows PowerShell
