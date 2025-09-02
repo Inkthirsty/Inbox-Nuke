@@ -1,4 +1,4 @@
-# Inbox Nuke
+# Inbox Nuke (WIP not finished)
 please only use this for educational and experimental purposes as I do not condone misuse!
 
 ## Setup (Python 3.10)
