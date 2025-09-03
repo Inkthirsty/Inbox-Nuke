@@ -87,7 +87,6 @@ class Pages:
             margins = (0, 0, 0, 0)
             button_size = (250, 40)
             input_size = (400, 30)
-            alignment = Qt.AlignmentFlag.AlignHCenter
 
             # unimportant
             self.components = Components()
@@ -103,7 +102,7 @@ class Pages:
 
             layout = QVBoxLayout(container)
             layout.setContentsMargins(*margins)
-            layout.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
+            layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
             # do important stuff under here
             self.components.heading = QLabel("what do you wanna do today :3")
@@ -121,9 +120,14 @@ class Pages:
             # self.components.button.clicked.connect(lambda: asyncio.create_task(self.do_async_button()))
             self.components.button.clicked.connect(lambda checked=False: asyncio.create_task(self.window.switchPage(Pages.Other)))
 
+            custom_align = {
+                
+            }
+
             # finalize
             for widget in self.components.iter_widgets():
-                layout.addWidget(widget, alignment=alignment)
+                print("widget:", widget, custom_align.get(widget))
+                layout.addWidget(widget, alignment=custom_align.get(widget, Qt.AlignmentFlag.AlignHCenter))
 
             main_layout = QVBoxLayout(self)
             main_layout.addWidget(scroll)
@@ -143,7 +147,6 @@ class Pages:
             margins = (0, 0, 0, 0)
             button_size = (250, 40)
             input_size = (400, 30)
-            alignment = Qt.AlignmentFlag.AlignHCenter
 
             # unimportant
             self.components = Components()
@@ -159,11 +162,13 @@ class Pages:
 
             layout = QVBoxLayout(container)
             layout.setContentsMargins(*margins)
-            layout.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
+            layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
             # do important stuff under here
             self.components.button = QPushButton("Back", flat=True)
-            self.components.button.setFixedSize(button_size[0], 20)
+            self.components.button.setFixedHeight(30)
+            self.components.button.adjustSize()
+            self.components.button.move(0, 0)
             self.components.button.clicked.connect(lambda checked=False: asyncio.create_task(self.window.switchPage(Pages.Home)))
 
             self.components.heading = QLabel("woah other page!")
@@ -171,9 +176,14 @@ class Pages:
             self.components.heading2 = QLabel("fuck you")
             self.components.heading2.setStyleSheet("""padding-bottom: 20px;font-size: 10pt;font-weight: normal""")
 
+            custom_align = {
+                self.components.button: Qt.AlignmentFlag.AlignLeft
+            }
+
             # finalize
             for widget in self.components.iter_widgets():
-                layout.addWidget(widget, alignment=alignment)
+                print("widget:", widget, custom_align.get(widget))
+                layout.addWidget(widget, alignment=custom_align.get(widget, Qt.AlignmentFlag.AlignHCenter))
 
             main_layout = QVBoxLayout(self)
             main_layout.addWidget(scroll)
@@ -455,59 +465,59 @@ class MainWindow(QWidget):
 
 
     def mouseMoveEvent(self, event: QMouseEvent):
+        pos = event.position().toPoint()           # widget-local coordinates
         global_pos = event.globalPosition().toPoint()
 
+        # --- Hover cursor update (always runs) ---
+        cursor = Qt.ArrowCursor  # default
+        if not self.isMaximized():
+            direction = self.get_resize_direction(pos)
+            if direction is not None:
+                if direction in ['left', 'right']:
+                    cursor = Qt.SizeHorCursor
+                elif direction in ['top', 'bottom']:
+                    cursor = Qt.SizeVerCursor
+                elif direction in ['top-left', 'bottom-right']:
+                    cursor = Qt.SizeFDiagCursor
+                elif direction in ['top-right', 'bottom-left']:
+                    cursor = Qt.SizeBDiagCursor
+        self.setCursor(cursor)
+
+        # --- Dragging logic ---
         if self._dragging:
             if self.isMaximized():
-                cursor_ratio_x = self._drag_start_pos.x() / self.width()
-                cursor_ratio_y = self._drag_start_pos.y() / self.height()
-
+                ratio_x = self._drag_start_pos.x() / self.width()
+                ratio_y = self._drag_start_pos.y() / self.height()
                 self.showNormal()
                 self.apply_style()
-
-                new_x = global_pos.x() - int(cursor_ratio_x * self.width())
-                new_y = global_pos.y() - int(cursor_ratio_y * self.height())
+                new_x = global_pos.x() - int(ratio_x * self.width())
+                new_y = global_pos.y() - int(ratio_y * self.height())
                 self.move(new_x, new_y)
-
-                self._drag_start_pos = QPoint(int(cursor_ratio_x * self.width()),
-                                              int(cursor_ratio_y * self.height()))
+                self._drag_start_pos = QPoint(int(ratio_x * self.width()), int(ratio_y * self.height()))
             else:
-                new_pos = global_pos - self._drag_start_pos
-                self.move(new_pos)
+                self.move(global_pos - self._drag_start_pos)
             event.accept()
             return
 
-        if self._resizing and self._resize_start_rect:
-            if not self.isMaximized():
-                delta = global_pos - self._drag_start_pos
-                rect = QRect(self._resize_start_rect)
-                min_w, min_h = self.minimumWidth(), self.minimumHeight()
+        # --- Resizing logic ---
+        if self._resizing and self._resize_start_rect and not self.isMaximized():
+            delta = global_pos - self._drag_start_pos
+            rect = QRect(self._resize_start_rect)
+            min_w, min_h = self.minimumWidth(), self.minimumHeight()
 
-                if 'left' in self._resize_direction:
-                    rect.setLeft(min(rect.right() - min_w, rect.left() + delta.x()))
-                if 'right' in self._resize_direction:
-                    rect.setRight(max(rect.left() + min_w, rect.right() + delta.x()))
-                if 'top' in self._resize_direction:
-                    rect.setTop(min(rect.bottom() - min_h, rect.top() + delta.y()))
-                if 'bottom' in self._resize_direction:
-                    rect.setBottom(max(rect.top() + min_h, rect.bottom() + delta.y()))
+            if 'left' in self._resize_direction:
+                rect.setLeft(min(rect.right() - min_w, rect.left() + delta.x()))
+            if 'right' in self._resize_direction:
+                rect.setRight(max(rect.left() + min_w, rect.right() + delta.x()))
+            if 'top' in self._resize_direction:
+                rect.setTop(min(rect.bottom() - min_h, rect.top() + delta.y()))
+            if 'bottom' in self._resize_direction:
+                rect.setBottom(max(rect.top() + min_h, rect.bottom() + delta.y()))
 
-                self.setGeometry(rect)
-                event.accept()
-                return
+            self.setGeometry(rect)
+            event.accept()
+            return
 
-        cursor = Qt.ArrowCursor
-        if not self.isMaximized():
-            direction = self.get_resize_direction(event.position().toPoint())
-            if direction in ['left', 'right']:
-                cursor = Qt.SizeHorCursor
-            elif direction in ['top', 'bottom']:
-                cursor = Qt.SizeVerCursor
-            elif direction in ['top-left', 'bottom-right']:
-                cursor = Qt.SizeFDiagCursor
-            elif direction in ['top-right', 'bottom-left']:
-                cursor = Qt.SizeBDiagCursor
-        self.setCursor(cursor)
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent):
