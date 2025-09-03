@@ -1,4 +1,4 @@
-import aiohttp, aiofiles, asyncio, sys, json, os, shutil
+import aiohttp, aiofiles, asyncio, sys, json, os, shutil, time
 from PySide6.QtWidgets import (
     QApplication,
     QWidget,
@@ -11,10 +11,12 @@ from PySide6.QtWidgets import (
     QGraphicsDropShadowEffect,
     QHBoxLayout,
     QScrollArea,
+    QSizePolicy
 )
 from PySide6.QtCore import Qt, QPoint, QByteArray, QRect, QSize, QPointF
 from PySide6.QtGui import QColor, QMouseEvent, QFont, QPixmap, QIcon
 from qasync import QEventLoop
+from collections.abc import MutableMapping
 from endpoints import Endpoints
 
 DIRECTORY = os.path.dirname(__file__)
@@ -59,83 +61,73 @@ class Page(QWidget):
                 widget.setParent(None)
         self._init_widgets()
 
+class Components:
+    def __init__(self):
+        self._order = []
+        self._widgets = {}
+
+    def __setattr__(self, name, value):
+        if isinstance(value, QWidget):  # only auto-register widgets
+            self._order.append(name)
+            self._widgets[name] = value
+        super().__setattr__(name, value)
+
+    def iter_widgets(self):
+        for name in self._order:
+            yield self._widgets[name]
+
+
 
 class Pages:
     class Home(Page):
         def _init_widgets(self):
+            # unimportant
+            self.components = Components()
+
             scroll = QScrollArea(self)
             scroll.setWidgetResizable(True)
-
+            scroll.setFrameShape(QScrollArea.NoFrame)
             container = QWidget()
+            container.setObjectName("scroll_content")
             scroll.setWidget(container)
 
             layout = QVBoxLayout(container)
+            layout.setContentsMargins(0, 0, 0, 0)
+            # layout.setSpacing(0)
             layout.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
-            layout.addWidget(QLabel("Home Page"), alignment=Qt.AlignmentFlag.AlignHCenter)
 
-            button_size = (200, 30)
-            self.input = QLineEdit("Type something here")
-            self.input.setMaximumWidth(200)
-            layout.addWidget(self.input, alignment=Qt.AlignmentFlag.AlignHCenter)
+            button_size = (250, 40)
+            input_size = (400, 30)
+            alignment = Qt.AlignmentFlag.AlignHCenter
 
-            self.async_btn = QPushButton("Run Async Task", flat=True)
-            self.async_btn.setMinimumSize(*button_size)
-            self.async_btn.setMaximumSize(*button_size)
-            layout.addWidget(self.async_btn, alignment=Qt.AlignmentFlag.AlignHCenter)
+            # do important stuff under here
+            self.components.heading = QLabel("stupid stuff")
 
-            self.async_btn.clicked.connect(lambda: asyncio.create_task(self.do_async_button()))
+            self.components.input = QLineEdit("Type something here")
+            self.components.input.setMinimumSize(*input_size)
+            # self.components.input.setMaximumSize(*input_size)
+
+            self.components.button = QPushButton("Run Async Task", flat=True)
+            self.components.button.setMinimumSize(*button_size)
+            # self.components.button.setMaximumSize(*button_size)
+            self.components.button.clicked.connect(lambda: asyncio.create_task(self.do_async_button()))
+
+            for i in range(2):
+                setattr(self.components, f"what{i+1}", QLabel(f"stupid: {i+1}"))
+
+            # finalize
+            for widget in self.components.iter_widgets():
+                layout.addWidget(widget, alignment=alignment)
 
             main_layout = QVBoxLayout(self)
             main_layout.addWidget(scroll)
 
         async def do_async_button(self):
             print("Async button clicked!")
-            self.async_btn.setEnabled(False)
+            self.components.async_btn.setEnabled(False)
             await asyncio.sleep(3)
-            self.async_btn.setEnabled(True)
+            self.components.async_btn.setEnabled(True)
             print("Button ready again!")
-
-
-    class Emails(Page):
-        def _init_widgets(self):
-            scroll = QScrollArea(self)
-            scroll.setWidgetResizable(True)
-
-            container = QWidget()
-            scroll.setWidget(container)
-
-            layout = QVBoxLayout(container)
-            layout.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
-            layout.addWidget(QLabel("Home Page"), alignment=Qt.AlignmentFlag.AlignHCenter)
-
-            button_size = (200, 30)
-            self.input = QLineEdit("Type something here")
-            self.input.setMaximumWidth(200)
-            layout.addWidget(self.input, alignment=Qt.AlignmentFlag.AlignHCenter)
-
-            self.async_btn = QPushButton("Run Async Task", flat=True)
-            self.async_btn.setMinimumSize(*button_size)
-            self.async_btn.setMaximumSize(*button_size)
-            layout.addWidget(self.async_btn, alignment=Qt.AlignmentFlag.AlignHCenter)
-
-            self.async_btn.clicked.connect(lambda: asyncio.create_task(self.do_async_button()))
-
-            main_layout = QVBoxLayout(self)
-            main_layout.addWidget(scroll)
-
-        async def do_async_button(self):
-            print("Async button clicked!")
-            self.async_btn.setEnabled(False)
-            await asyncio.sleep(3)
-            self.async_btn.setEnabled(True)
-            print("Button ready again!")
-
-    class Settings(Page):
-        def _init_widgets(self):
-            layout = QVBoxLayout(self)
-            layout.addWidget(QLabel("Settings Page"))
-            self.input = QLineEdit("Type something here")
-            layout.addWidget(self.input)
 
     @classmethod
     def instigate(cls):
@@ -155,11 +147,17 @@ class MainWindow(QWidget):
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint)
         self.setWindowIcon(QIcon(os.path.join(DIRECTORY, "assets/icon.ico")))
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+
+        # Drag / resize flags
         self._dragging = False
         self._resizing = False
         self._drag_start_pos = QPoint()
         self._resize_direction = None
+        self._resize_fixed = False
+        self._resize_start_rect = None
+        self._resize_edges = {}
         self._normal_geometry = self.geometry()
+
         self._setup_ui()
         self._setup_connections()
         self._setup_mouse_events()
@@ -285,6 +283,48 @@ class MainWindow(QWidget):
                 }}
             """
             self.btn_max.setIcon(QIcon(os.path.join(DIRECTORY, "assets/square1.png")))
+        
+        style += f"""
+            /* General widgets */
+            QWidget {{
+                color: white;
+            }}
+            /* Text input fields */
+            QLineEdit {{
+                background-color: rgba(40, 40, 40, 0.9);
+                color: white;
+                border: 1px solid #555;
+                border-radius: 6px;
+                padding: 4px;
+            }}
+            QLineEdit:focus {{
+                border: 1px solid {COLOR_THEME};
+            }}
+            QPushButton {{
+                background-color: rgba(60, 60, 60, 0.9);
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 6px 12px;
+            }}
+            QPushButton:hover {{
+                background-color: rgba(80, 80, 80, 0.9);
+            }}
+            QPushButton:disabled {{
+                background-color: rgba(60, 60, 60, 0.4);
+                color: gray;
+            }}
+            QScrollArea {{
+                background: transparent;
+                border: none;
+            }}
+            QScrollArea > QWidget {{
+                background: transparent;
+            }}
+            QWidget#scroll_content {{
+                background: transparent;
+            }}
+        """
         self.setStyleSheet(style)
 
     def toggleMaximizeRestore(self):
@@ -308,7 +348,7 @@ class MainWindow(QWidget):
     def getPage(self) -> Page:
         return self.stack.currentWidget()
 
-    # --- Events (unchanged from your original) ---
+    # --- Events ---
     def resizeEvent(self, event):
         if not self.isMaximized():
             self._normal_geometry = self.geometry()
@@ -327,112 +367,129 @@ class MainWindow(QWidget):
         bottom = pos.y() >= rect.height() - self.RESIZE_MARGIN
 
         if top and left:
-            return Qt.CursorShape.SizeFDiagCursor  # top-left
+            return 'top-left'
         if top and right:
-            return Qt.CursorShape.SizeBDiagCursor  # top-right
+            return 'top-right'
         if bottom and left:
-            return Qt.CursorShape.SizeBDiagCursor  # bottom-left
+            return 'bottom-left'
         if bottom and right:
-            return Qt.CursorShape.SizeFDiagCursor  # bottom-right
+            return 'bottom-right'
         if left:
-            return Qt.CursorShape.SizeHorCursor
+            return 'left'
         if right:
-            return Qt.CursorShape.SizeHorCursor
+            return 'right'
         if top:
-            return Qt.CursorShape.SizeVerCursor
+            return 'top'
         if bottom:
-            return Qt.CursorShape.SizeVerCursor
-        return Qt.CursorShape.ArrowCursor
-
+            return 'bottom'
+        return None
 
     def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.LeftButton:
+            pos = event.position().toPoint()
             global_pos = event.globalPosition().toPoint()
-            local_pos = event.position().toPoint()
+
+            if self.isMaximized():
+                if self.title_bar.rect().contains(self.title_bar.mapFromGlobal(global_pos)):
+                    self._dragging = True
+                    self._drag_start_pos = global_pos
+                    return
+
+            if not self.isMaximized():
+                self._resize_direction = self.get_resize_direction(pos)
+                if self._resize_direction:
+                    self._resizing = True
+                    self._drag_start_pos = global_pos
+                    self._resize_start_rect = self.geometry()
+                    event.accept()
+                    return
+                
             if self.title_bar.rect().contains(self.title_bar.mapFromGlobal(global_pos)):
                 self._dragging = True
-                self._resizing = False
-                if self.isMaximized():
-                    self._drag_ratio_x = local_pos.x() / self.width()
-                    self._drag_ratio_y = local_pos.y() / self.height()
-                    self.showNormal()
-                    self.apply_style()
-                    new_x = int(global_pos.x() - self._drag_ratio_x * self.width())
-                    new_y = int(global_pos.y() - self._drag_ratio_y * self.height())
-                    self.move(new_x, new_y)
-                    self._drag_start_pos = global_pos - QPoint(new_x, new_y)
-                else:
-                    self._drag_start_pos = global_pos - self.frameGeometry().topLeft()
+                self._drag_start_pos = global_pos - self.frameGeometry().topLeft()
                 event.accept()
                 return
-            self._resize_direction = self.get_resize_direction(local_pos)
-            if self._resize_direction != Qt.CursorShape.ArrowCursor:
-                self._resizing = True
-                self._dragging = False
-                self._drag_start_pos = global_pos
-                event.accept()
+
         super().mousePressEvent(event)
+
 
     def mouseMoveEvent(self, event: QMouseEvent):
         global_pos = event.globalPosition().toPoint()
 
         if self._dragging:
-            new_pos = global_pos - self._drag_start_pos
-            screen_geometry = QApplication.primaryScreen().availableGeometry()
-            padding = 50
-            new_x = max(-self.width() + padding, min(new_pos.x(), screen_geometry.width() - padding))
-            new_y = max(0, min(new_pos.y(), screen_geometry.height() - padding))
-            self.move(new_x, new_y)
+            if self.isMaximized():
+                # Calculate the offset where the cursor grabbed the title bar
+                cursor_ratio_x = self._drag_start_pos.x() / self.width()
+                cursor_ratio_y = self._drag_start_pos.y() / self.height()
+
+                # Restore window
+                self.showNormal()
+                self.apply_style()
+
+                # Move the window so the cursor stays at the same relative position
+                new_x = global_pos.x() - int(cursor_ratio_x * self.width())
+                new_y = global_pos.y() - int(cursor_ratio_y * self.height())
+                self.move(new_x, new_y)
+
+                # Update drag start pos to maintain smooth dragging
+                self._drag_start_pos = QPoint(int(cursor_ratio_x * self.width()),
+                                              int(cursor_ratio_y * self.height()))
+            else:
+                new_pos = global_pos - self._drag_start_pos
+                self.move(new_pos)
             event.accept()
             return
 
-        if self._resizing:
-            diff = global_pos - self._drag_start_pos
-            rect = self.geometry()
+        if self._resizing and self._resize_start_rect:
+            # Resize disabled while maximized
+            if not self.isMaximized():
+                delta = global_pos - self._drag_start_pos
+                rect = QRect(self._resize_start_rect)
+                min_w, min_h = self.minimumWidth(), self.minimumHeight()
 
-            if self._resize_direction == Qt.CursorShape.SizeHorCursor:
-                if event.position().x() < rect.width() / 2:  # resizing from left
-                    rect.setLeft(rect.left() + diff.x())
-                else:  # resizing from right
-                    rect.setRight(rect.right() + diff.x())
-            elif self._resize_direction == Qt.CursorShape.SizeVerCursor:
-                if event.position().y() < rect.height() / 2:  # resizing from top
-                    rect.setTop(rect.top() + diff.y())
-                else:  # resizing from bottom
-                    rect.setBottom(rect.bottom() + diff.y())
-            elif self._resize_direction == Qt.CursorShape.SizeFDiagCursor:
-                rect.setLeft(rect.left() + diff.x())
-                rect.setTop(rect.top() + diff.y())
-            elif self._resize_direction == Qt.CursorShape.SizeBDiagCursor:
-                rect.setRight(rect.right() + diff.x())
-                rect.setBottom(rect.bottom() + diff.y())
+                if 'left' in self._resize_direction:
+                    rect.setLeft(min(rect.right() - min_w, rect.left() + delta.x()))
+                if 'right' in self._resize_direction:
+                    rect.setRight(max(rect.left() + min_w, rect.right() + delta.x()))
+                if 'top' in self._resize_direction:
+                    rect.setTop(min(rect.bottom() - min_h, rect.top() + delta.y()))
+                if 'bottom' in self._resize_direction:
+                    rect.setBottom(max(rect.top() + min_h, rect.bottom() + delta.y()))
 
-            self.setGeometry(rect)
-            self._drag_start_pos = global_pos
-            event.accept()
-            return
+                self.setGeometry(rect)
+                event.accept()
+                return
 
+        # Update cursor
+        cursor = Qt.ArrowCursor
         if not self.isMaximized():
-            self.setCursor(self.get_resize_direction(event.position().toPoint()))
-        else:
-            self.setCursor(Qt.CursorShape.ArrowCursor)
-
+            direction = self.get_resize_direction(event.position().toPoint())
+            if direction in ['left', 'right']:
+                cursor = Qt.SizeHorCursor
+            elif direction in ['top', 'bottom']:
+                cursor = Qt.SizeVerCursor
+            elif direction in ['top-left', 'bottom-right']:
+                cursor = Qt.SizeFDiagCursor
+            elif direction in ['top-right', 'bottom-left']:
+                cursor = Qt.SizeBDiagCursor
+        self.setCursor(cursor)
         super().mouseMoveEvent(event)
 
 
 
     def mouseReleaseEvent(self, event: QMouseEvent):
         if event.button() == Qt.LeftButton:
+            if self._dragging:
+                # Snap to top to maximize if released at top
+                if not self.isMaximized():
+                    cursor_y = event.globalPosition().y()
+                    if cursor_y <= 0:
+                        self._normal_geometry = self.geometry()
+                        self.showMaximized()
+                        self.apply_style()
+
             self._dragging = False
             self._resizing = False
-            self.setCursor(Qt.CursorShape.ArrowCursor)
-            if self.y() <= 0 and event.globalPosition().y() <= 5:
-                self._normal_geometry = self.geometry()
-                self.showMaximized()
-                self.apply_style()
-            elif self.y() < 10:
-                self.move(self.x(), 0)
-            event.accept()
         super().mouseReleaseEvent(event)
 
     def mouseDoubleClickEvent(self, event: QMouseEvent):
@@ -448,18 +505,57 @@ class MainWindow(QWidget):
             await asyncio.sleep(1)
 
 # -------------------- Async Config --------------------
-class AsyncSynchronizedDict:
+class AsyncSynchronizedDict(MutableMapping):
     def __init__(self, filename):
         self.filename = filename
         self.data = {}
 
+    # --- Dict-like behavior ---
+    def __getitem__(self, key):
+        return self.data[key]
+
+    async def __setitem__(self, key, value):
+        self.data[key] = value
+        await self._write_to_file()
+
+    async def __delitem__(self, key):
+        del self.data[key]
+        await self._write_to_file()
+
+    def __iter__(self):
+        return iter(self.data)
+
+    def __len__(self):
+        return len(self.data)
+
+    def __contains__(self, key):
+        return key in self.data
+
+    # --- Dict methods pass-through ---
+    def keys(self):
+        return self.data.keys()
+
+    def values(self):
+        return self.data.values()
+
+    def items(self):
+        return self.data.items()
+
+    def get(self, key, default=None):
+        return self.data.get(key, default)
+
+    def as_dict(self):
+        """Return the underlying dict."""
+        return self.data
+
+    # --- Load / Save ---
     async def load(self):
         try:
             if not os.path.exists(self.filename):
                 raise FileNotFoundError
             async with aiofiles.open(self.filename, 'r') as f:
                 content = await f.read()
-                self.data = json.loads(content)
+            self.data = json.loads(content)
         except (FileNotFoundError, json.JSONDecodeError):
             self.data = {}
 
@@ -467,46 +563,56 @@ class AsyncSynchronizedDict:
         async with aiofiles.open(self.filename, 'w') as f:
             await f.write(json.dumps(self.data, indent=4))
 
-    async def __setitem__(self, key, value):
-        self.data[key] = value
+    async def update(self, other=None, **kwargs):
+        """Update the dict and save asynchronously."""
+        if other is None:
+            other = {}
+        elif isinstance(other, AsyncSynchronizedDict):
+            other = other.data
+        elif not isinstance(other, dict):
+            raise TypeError("update() expects a dict or AsyncSynchronizedDict")
+        self.data.update(other, **kwargs)
         await self._write_to_file()
 
-    async def __getitem__(self, key):
-        return self.data[key]
-
-    async def __delitem__(self, key):
-        del self.data[key]
-        await self._write_to_file()
-
-    async def update(self, *args, **kwargs):
-        self.data.update(*args, **kwargs)
-        await self._write_to_file()
-    
-    def get(self):
-        return self.data.get
-    
     def __repr__(self):
         return f"AsyncSynchronizedDict({self.data})"
+
+
+# -------------------- Merge Function --------------------
+def merge_config(default: dict, current: dict) -> dict:
+    """Recursively merge default into current, adding only missing keys."""
+    for key, value in default.items():
+        if key not in current:
+            current[key] = value
+        elif isinstance(value, dict) and isinstance(current.get(key), dict):
+            merge_config(value, current[key])
+    return current
+
 
 # -------------------- Main Async --------------------
 async def main_async(window):
     async with aiohttp.ClientSession() as session:
         CONFIG = AsyncSynchronizedDict(CONFIG_PATH)
         await CONFIG.load()
-        if not CONFIG.get():
-            try:
-                async with session.get("https://raw.githubusercontent.com/Inkthirsty/Inbox-Nuke/refs/heads/main/src/config.example.json") as response:
-                    response.raise_for_status()
-                    resp = json.loads(await response.text())
+        current_config = CONFIG.as_dict()  # get the full dict
 
-                    for key, value in resp.items():
-                        if not CONFIG.get(key):
-                            CONFIG
-                    await CONFIG.update(resp)
-                    print("config downloaded and saved")
-            except aiohttp.ClientError as e:
-                print(f"Error fetching remote config: {e}")
+        try:
+            async with session.get(f"https://raw.githubusercontent.com/Inkthirsty/Inbox-Nuke/refs/heads/main/src/config.example.json") as response:
+                response.raise_for_status()
+                default_config = json.loads(await response.text())
+                print("Default config:", json.dumps(default_config, indent=1))
 
+                # Merge example/default config into current config, always
+                merged = merge_config(default_config, current_config)
+
+                # Save merged config back to file
+                await CONFIG.update(merged)
+                print("Config merged and saved successfully.")
+
+        except aiohttp.ClientError as e:
+            print(f"Error fetching remote config: {e}")
+
+    # Trigger the window's async task
     asyncio.create_task(window.do_async_task())
     await asyncio.sleep(0)
 
@@ -514,6 +620,7 @@ async def main_async(window):
 def main():
     try:
         app = QApplication(sys.argv)
+        # The main stylesheet is now applied in the MainWindow class
         app.setWindowIcon(QIcon(os.path.join(DIRECTORY, "assets/icon.ico")))
         font = QFont("Consolas", 12)
         font.setBold(True)
