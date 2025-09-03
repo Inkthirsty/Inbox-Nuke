@@ -1,5 +1,5 @@
 # Inbox Nuke (WIP not finished)
-This is a program I made with the intent of seeing how many emails I can fill my inbox with, please only use this for experimental purposes as I do not condone misuse.
+This is a program I made with the intent of seeing how many emails I can fill my inbox with, please only use this for educational/experimental purposes as I do not condone misuse.
 
 ## Setup (Python 3.10)
 * Create a venv with `python -m venv venv`
