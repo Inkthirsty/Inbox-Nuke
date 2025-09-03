@@ -597,7 +597,7 @@ async def main_async(window):
         current_config = CONFIG.as_dict()  # get the full dict
 
         try:
-            async with session.get(f"https://raw.githubusercontent.com/Inkthirsty/Inbox-Nuke/refs/heads/main/src/config.example.json") as response:
+            async with session.get(f"https://rawcdn.githack.com/Inkthirsty/Inbox-Nuke/refs/heads/main/src/config.example.json?min=1") as response:
                 response.raise_for_status()
                 default_config = json.loads(await response.text())
                 print("Default config:", json.dumps(default_config, indent=1))
