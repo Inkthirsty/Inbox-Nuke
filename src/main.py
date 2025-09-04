@@ -183,7 +183,6 @@ class Pages:
 
             # finalize
             for widget in self.components.iter_widgets():
-                print("widget:", widget, custom_align.get(widget))
                 layout.addWidget(widget, alignment=custom_align.get(widget, Qt.AlignmentFlag.AlignHCenter))
 
             main_layout = QVBoxLayout(self)
