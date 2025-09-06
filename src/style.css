@@ -1,0 +1,53 @@
+QLineEdit, QSpinBox {
+    font-weight: normal;
+    background-color: rgba(40, 40, 40, 0.9);
+    color: white;
+    border: 2px solid {color};
+    border-radius: 4px;
+    padding: 4px 4px;
+}
+QLineEdit:focus {
+    border: 2px solid {focus_color};
+}
+*:focus {
+    outline: none;
+}
+QWidget {
+    color: white;
+}
+QPushButton {
+    background-color: rgba(60, 60, 60, 0.9);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+}
+QPushButton:hover {
+    background-color: rgba(80, 80, 80, 0.9);
+}
+QPushButton:disabled {
+    background-color: rgba(60, 60, 60, 0.4);
+    color: gray;
+}
+QScrollArea {
+    background: transparent;
+    border: none;
+}
+QScrollArea > QWidget {
+    background: transparent;
+}
+QWidget#scroll_content {
+    background: transparent;
+}
+QStackedWidget {
+    background: qlineargradient(
+        x1:0, y1:0, x2:0.5, y2:1,
+        stop:0 {COLOR_1},
+        stop:1 {COLOR_2}
+    );
+    border-radius: 0px;
+}
+QCheckBox {
+    font-weight: normal;
+    font-size: 10pt;
+}

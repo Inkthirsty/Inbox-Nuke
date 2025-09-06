@@ -1,12 +1,17 @@
+import aiohttp
+
 class Endpoint:
-    def __init__(self, session):
+    def __init__(self, session: aiohttp.ClientSession):
         self.session = session
 
 class Endpoints:
     class Home(Endpoint):
-        async def request(self, data: str):
-            async with self.session.get(f'https://test.com/{data}') as response:
-                response.raise_for_status()
-                response_text = await response.text()
-                print(f"Request to https://test.com/{data} successful. Status: {response.status}")
-                return response_text
+        async def __call__(self, email: str):
+            data = {
+                "publicationIds": "458709,10845,556800,329241,35345,471923,737237",
+                "email": email
+            }
+            async with self.session.post("https://substack.com/api/v1/reader/signup/just_email", json=data) as response:
+                resp = await response.text()
+                print("RESP:", resp)
+            return response

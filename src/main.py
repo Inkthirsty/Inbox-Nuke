@@ -1,4 +1,4 @@
-import aiohttp, aiofiles, asyncio, sys, json, os, shutil
+import aiohttp, aiofiles, asyncio, sys, json, os, shutil, re
 from PySide6.QtWidgets import (
     QApplication,
     QWidget,
@@ -10,12 +10,13 @@ from PySide6.QtWidgets import (
     QFrame,
     QGraphicsDropShadowEffect,
     QHBoxLayout,
-    QScrollArea
+    QScrollArea, QCheckBox, QSpinBox, QSlider
 )
-from PySide6.QtCore import Qt, QPoint, QRect, QSize, QTimer
-from PySide6.QtGui import QColor, QMouseEvent, QFont, QIcon, QCursor
+from PySide6.QtCore import Qt, QPoint, QRect, QSize, QTimer, QRegularExpression
+from PySide6.QtGui import QColor, QMouseEvent, QFont, QIcon, QCursor, QRegularExpressionValidator, QValidator
 from qasync import QEventLoop
 from collections.abc import MutableMapping
+from itertools import combinations
 from endpoints import Endpoints
 
 DIRECTORY = os.path.dirname(__file__)
@@ -28,13 +29,25 @@ if os.path.exists(TEMP_PATH):
     shutil.rmtree(TEMP_PATH)
 os.makedirs(TEMP_PATH, exist_ok=True)
 
-colors = ["#162034", "#06163B"]
-COLOR_BACKGROUND = "#1c1c1c" # "#1c1c1c"
-COLOR_FOREGROUND = "#162034" # "#162034"
-COLOR_THEME = COLOR_FOREGROUND # "#3d3f4e" # "#386a8a"
-
 TITLE = "Inbox Nuke"
 VERSION = "1.0.0"
+
+COLOR_1 = "#0a0a0a"
+COLOR_2 = "#162034"
+COLOR_THEME = "#386a8a"
+COLOR_BORDER = "#555555"
+
+COLOR_GREEN = "#7fff4d"
+COLOR_RED = "#FF4D4D"
+
+REQUIRED = f"<span style=\"color:{COLOR_RED}\">*</span>"
+
+with open("style.css", "r") as file:
+    style = file.read()
+style = style.replace("{focus_color}", COLOR_THEME)
+style = style.replace("{COLOR_1}", COLOR_1)
+style = style.replace("{COLOR_2}", COLOR_2)
+style_main = style.replace("{color}", COLOR_BORDER)
 
 # -------------------- Page Classes --------------------
 class Page(QWidget):
@@ -77,7 +90,27 @@ class Components:
         for name in self._order:
             yield self._widgets[name]
 
+class WidgetGroup:
+    def __init__(self, *widgets):
+        self.widgets = list(widgets)
+        self._visibility = {w: w.isVisible() for w in widgets}
 
+    def hide(self):
+        for w in self.widgets:
+            w.hide()
+
+    def show(self):
+        for w in self.widgets:
+            # restore previous state
+            if self._visibility.get(w, True):
+                w.show()
+            else:
+                w.hide()
+
+    def add(self, *widgets):
+        for w in widgets:
+            self.widgets.append(w)
+            self._visibility[w] = w.isVisible()
 
 class Pages:
     class Home(Page):
@@ -105,23 +138,23 @@ class Pages:
 
             # do important stuff under here
             self.components.heading = QLabel("what would you like to do today?")
-            self.components.heading.setStyleSheet("""font-size: 20pt""")
-            self.components.heading2 = QLabel("made by max")
-            self.components.heading2.setStyleSheet("""padding-bottom: 20px;font-size: 10pt;font-weight: normal""")
+            self.components.heading.setStyleSheet("font-size: 20pt")
+            self.components.heading2 = QLabel("made by max (@inkthirsty)")
+            self.components.heading2.setStyleSheet("padding-bottom: 10px;font-size: 10pt;font-weight: normal")
 
             """
             self.components.input = QLineEdit("Type something here")
             self.components.input.setFixedSize(*input_size)
             """
 
-            self.components.button = QPushButton("Nuke a random country", flat=True)
+            self.components.button = QPushButton("Nuke France", flat=True)
             self.components.button.setFixedSize(*button_size)
-            self.components.button.clicked.connect(lambda checked=False: asyncio.create_task(self.window.switchPage(Pages.Other)))
+            self.components.button.clicked.connect(lambda checked=False: asyncio.create_task(self.window.switchPage(Pages.Nuke)))
 
             self.components.button2 = QPushButton("Kick a toddler", flat=True)
             self.components.button2.setFixedSize(*button_size)
 
-            self.components.button3 = QPushButton("Do something illegal", flat=True)
+            self.components.button3 = QPushButton("Commit tax evasion", flat=True)
             self.components.button3.setFixedSize(*button_size)
 
             custom_align = {}
@@ -142,7 +175,7 @@ class Pages:
 
 
             
-    class Other(Page):
+    class Nuke(Page):
         def _init_widgets(self):
             # config
             margins = (0, 0, 0, 0)
@@ -156,6 +189,7 @@ class Pages:
             scroll.setWidgetResizable(True)
             scroll.setContentsMargins(*margins)
             scroll.setFrameShape(QScrollArea.NoFrame)
+
             container = QWidget()
             container.setContentsMargins(*margins)
             container.setObjectName("scroll_content")
@@ -163,27 +197,134 @@ class Pages:
 
             layout = QVBoxLayout(container)
             layout.setContentsMargins(*margins)
+            layout.setSpacing(10)
             layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
             # do important stuff under here
-            self.components.button = QPushButton("Back", flat=True)
-            self.components.button.setFixedHeight(30)
-            self.components.button.adjustSize()
-            self.components.button.move(0, 0)
-            self.components.button.clicked.connect(lambda checked=False: asyncio.create_task(self.window.switchPage(Pages.Home)))
 
-            self.components.heading = QLabel("woah other page!")
-            self.components.heading.setStyleSheet("""font-size: 20pt""")
-            self.components.heading2 = QLabel("fuck you")
-            self.components.heading2.setStyleSheet("""padding-bottom: 20px;font-size: 10pt;font-weight: normal""")
+            class choices: pass
 
-            custom_align = {
-                self.components.button: Qt.AlignmentFlag.AlignLeft
-            }
+            self._init_callbacks = []
+
+            def wrap(signal, callback):
+                def new_callback():
+                    callback()
+                    check()
+                signal.connect(new_callback)
+                self._init_callbacks.append(callback)
+
+            self.components.heading = QLabel("Nuke your inbox!")
+            self.components.heading.setStyleSheet("padding-bottom: 10px;font-size: 20pt")
+
+            self.components.heading1 = QLabel(f"Email {REQUIRED}")
+            self.components.heading1.setFixedWidth(input_size[0])
+
+            validator = QRegularExpressionValidator(QRegularExpression(r"(^[a-zA-Z0-9!#$%&'*+/=?^_`{|}~.-]+@[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)*$)"))
+
+            def dot_variants(email: str) -> list[str]:
+                try:
+                    local, domain = email.split("@", 1)
+                except ValueError:
+                    return [email]
+                
+                if not re.fullmatch(r"[A-Za-z0-9]+", local):
+                    return [email]
+                
+                results = set()
+                n = len(local)
+                
+                positions = range(1, n)
+                for r in range(len(positions) + 1):
+                    for combo in combinations(positions, r):
+                        parts = []
+                        last = 0
+                        for pos in combo:
+                            parts.append(local[last:pos])
+                            last = pos
+                        parts.append(local[last:])
+                        dotted = ".".join(parts)
+                        results.add(f"{dotted}@{domain}")
+                
+                return list(reversed(sorted(results)))
+
+            def check_email():
+                text = str(self.components.input1.text()).strip().split(" ")[0]
+                state, _, _ = validator.validate(text, 0)
+                acceptable = state == QValidator.State.Acceptable
+                choices.email = acceptable and text.lower() or None
+                self.components.input1.setStyleSheet(style.replace("{color}", len(text) > 0 and (acceptable and COLOR_GREEN or COLOR_RED) or COLOR_BORDER))
+
+                choices.variants = acceptable and dot_variants(choices.email) or None
+                variantCount = choices.variants and len(choices.variants) or 1
+                self.components.heading2.setText(f"Threads (1 - {variantCount:,})")
+                self.components.spinbox.setMaximum(variantCount)
+                self.components.slider.setMaximum(variantCount)
+                return acceptable
+
+            self.components.input1 = QLineEdit(placeholderText="Input email here", maxLength=100)
+            self.components.input1.setFixedSize(*input_size)
+            wrap(self.components.input1.textChanged, check_email)
+
+            """
+            self.components.label1 = QLabel(f"small :3")
+            self.components.label1.setStyleSheet("padding-top: -6px;font-size: 8pt")
+            self.components.label1.setFixedSize(input_size[0], 20)
+            self.components.label1.hide()
+            """
+
+            self.components.heading2 = QLabel()
+            self.components.heading2.setFixedWidth(input_size[0])
+
+            self.components.slider = QSlider(Qt.Orientation.Horizontal)
+            self.components.slider.setMinimum(1)
+            self.components.slider.setMaximum(1)
+            self.components.slider.setTickInterval(10)
+            self.components.slider.setFixedWidth(input_size[0])
+            self.components.slider.setTickPosition(QSlider.TickPosition.NoTicks)
+
+            self.components.spinbox = QSpinBox()
+            self.components.spinbox.setFixedWidth(input_size[0])
+            self.components.spinbox.setMinimum(1)
+            self.components.spinbox.setMaximum(1)
+            
+            self.components.slider.valueChanged.connect(self.components.spinbox.setValue)
+            self.components.spinbox.valueChanged.connect(self.components.slider.setValue)
+            
+            def check_agreement():
+                agreed = self.components.checkbox.checkState() == Qt.CheckState.Checked
+                choices.agreed = agreed
+                check()
+                return agreed
+
+            self.components.checkbox = QCheckBox("I agree to use this tool only on my own email inboxes and not to\nmisuse it with the intent to cause damage.")
+            self.components.checkbox.setFixedWidth(input_size[0])
+            wrap(self.components.checkbox.stateChanged, check_agreement)
+
+            self.components.button = QPushButton("Launch Nuke!")
+            self.components.button.setFixedSize(*button_size)
+            self.components.button.setEnabled(False)
+
+            def check():
+                criteria = [choices.email, choices.agreed, ]
+                self.components.button.setEnabled(all(criteria))
+
+            custom_align = {}
+
+            group1 = WidgetGroup(self.components.heading1, self.components.input1, self.components.button, self.components.checkbox)
 
             # finalize
             for widget in self.components.iter_widgets():
                 layout.addWidget(widget, alignment=custom_align.get(widget, Qt.AlignmentFlag.AlignHCenter))
+            for callback in self._init_callbacks:
+                callback()
+
+            # back button
+            back_button = QPushButton("Back", self, flat=True)
+            back_button.setFixedHeight(30)
+            back_button.adjustSize()
+            back_button.move(10, 10)
+            back_button.raise_()
+            back_button.clicked.connect(lambda checked=False: asyncio.create_task(self.window.switchPage(Pages.Home)))
 
             main_layout = QVBoxLayout(self)
             main_layout.addWidget(scroll)
@@ -221,55 +362,7 @@ class MainWindow(QWidget):
                 self.stack.addWidget(obj)
 
     def apply_style(self):
-        # simplified styling for normal window
-        style = f"""
-            QWidget {{
-                color: white;
-            }}
-            QLineEdit {{
-                background-color: rgba(40, 40, 40, 0.9);
-                color: white;
-                border: 1px solid #555;
-                border-radius: 6px;
-                padding: 4px;
-            }}
-            QLineEdit:focus {{
-                border: 1px solid {COLOR_THEME};
-            }}
-            QPushButton {{
-                background-color: rgba(60, 60, 60, 0.9);
-                color: white;
-                border: none;
-                border-radius: 6px;
-                padding: 6px 12px;
-            }}
-            QPushButton:hover {{
-                background-color: rgba(80, 80, 80, 0.9);
-            }}
-            QPushButton:disabled {{
-                background-color: rgba(60, 60, 60, 0.4);
-                color: gray;
-            }}
-            QScrollArea {{
-                background: transparent;
-                border: none;
-            }}
-            QScrollArea > QWidget {{
-                background: transparent;
-            }}
-            QWidget#scroll_content {{
-                background: transparent;
-            }}
-            QStackedWidget {{
-                background: qlineargradient(
-                    x1:0, y1:0, x2:0.5, y2:1,
-                    stop:0 {COLOR_BACKGROUND},
-                    stop:1 {COLOR_FOREGROUND}
-                );
-                border-radius: 0px;
-            }}
-        """
-        self.setStyleSheet(style)
+        self.setStyleSheet(style_main)
 
     async def switchPage(self, page: Page):
         current = self.getPage()
@@ -382,7 +475,7 @@ def main():
     try:
         app = QApplication(sys.argv)
         app.setWindowIcon(QIcon(os.path.join(DIRECTORY, "assets/icon.ico")))
-        font = QFont("Roboto", 12)
+        font = QFont("Nunito", 12)
         font.setBold(True)
         app.setFont(font)
 
