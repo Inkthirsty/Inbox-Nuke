@@ -9,7 +9,7 @@ PASSWORD = """T)v5q(`'<>2iP29X8a+N"""
 class Endpoints:
     class FalconComputers(Endpoint):
         name = "Falcon Computers"
-        icon = "https://i.ibb.co/RZWx1Nk/5f89d6523a2a.png"
+        url = "https://www.falconcomputers.co.uk/myaccount/register"
         async def __call__(self, email: str):
             data = {
                 "email": email,
@@ -22,7 +22,7 @@ class Endpoints:
             
     class altontowers(Endpoint):
         name = "Alton Towers"
-        icon = "https://i.ibb.co/7NLKZzHx/image.png"
+        url = "https://www.altontowers.com/umbraco/api/signupform/submit"
         async def __call__(self, email: str):
             data = {
                 "__RequestVerificationToken": "",
@@ -40,5 +40,16 @@ class Endpoints:
                 "Permission": "on",
             }
             async with self.session.post("https://www.altontowers.com/umbraco/api/signupform/submit", json=data) as response:
+                return response.ok # it returns 200 even if it doesnt send so idk
+            
+    class paramore(Endpoint):
+        name = "Paramore"
+        url = "https://paramore.net/"
+        async def __call__(self, email: str):
+            data = {
+                "countrycode": "GB",
+                "email": email,
+            }
+            async with self.session.post("https://ukstore.paramore.net/a/app/vice-versa/api/subscribe", json=data) as response:
                 return response.ok # it returns 200 even if it doesnt send so idk
             

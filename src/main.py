@@ -1,4 +1,4 @@
-import aiohttp, aiofiles, asyncio, sys, json, os, shutil, re, inspect, time
+import aiohttp, aiofiles, asyncio, sys, json, os, shutil, re, inspect, time, random
 from PySide6.QtWidgets import (
     QApplication,
     QWidget,
@@ -30,7 +30,7 @@ if os.path.exists(TEMP_PATH):
 os.makedirs(TEMP_PATH, exist_ok=True)
 
 TITLE = "Inbox Nuke"
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 COLOR_1 = "#0a0a0a"
 COLOR_2 = "#162034"
@@ -48,6 +48,19 @@ style = style.replace("{focus_color}", COLOR_THEME)
 style = style.replace("{COLOR_1}", COLOR_1)
 style = style.replace("{COLOR_2}", COLOR_2)
 style_main = style.replace("{color}", COLOR_BORDER)
+
+async def get_favicon(url: str) -> str:
+    params = {
+        "client": "SOCIAL",
+        "type": "FAVICON",
+        "fallback_opts": "TYPE,SIZE,URL",
+        "size": "256",
+        "url": url
+    }
+
+    async with aiohttp.ClientSession() as session:
+        async with session.head("https://t3.gstatic.com/faviconV2", params=params) as response:
+            return response.ok and str(response.url) or None
 
 async def set_pixmap(label: QLabel, source: str, width=None, height=None, radius: int | float = 0):
     pixmap = QPixmap()
@@ -218,6 +231,7 @@ class Pages:
             self.total = 0
             self.boxes = {}
             self.stats = {}
+            self._nuke_tasks = []
 
             default_align = Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop
             # config
@@ -336,7 +350,7 @@ class Pages:
             self.components.checkbox.setFixedWidth(input_size[0])
             wrap(self.components.checkbox.stateChanged, check_agreement)
 
-            self.components.button = QPushButton("Launch Nuke!")
+            self.components.button = QPushButton("Launch Nukes!")
             self.components.button.setFixedSize(*button_size)
             self.components.button.setEnabled(False)
 
@@ -359,8 +373,22 @@ class Pages:
             self.components.progress.setRange(0, 100)
             self.components.progress.setValue(0)
 
+            self.components.stop_button = QPushButton("Stop Nukes!")
+            self.components.stop_button.setFixedSize(*button_size)
+
             group1 = WidgetGroup(self.components.heading, self.components.heading1, self.components.heading2, self.components.input1, self.components.button, self.components.checkbox, self.components.slider, self.components.spinbox)
-            group2 = WidgetGroup(self.components.heading3, self.components.label1, self.components.progress)
+            group2 = WidgetGroup(self.components.heading3, self.components.label1, self.components.stop_button, self.components.progress)
+
+            async def stop_nuke():
+                if self.nuking == True:
+                    self.nuking = False
+                    self.components.stop_button.setText("Return")
+                elif self.nuking == False:
+                    group2.hide()
+                    group1.show()
+                    self.components.stop_button.setText("Stop Nukes!")
+            
+            self.components.stop_button.clicked.connect(lambda checked=False: asyncio.create_task(stop_nuke()))
 
             async def launch_nuke():
                 if self.nuking:
@@ -369,10 +397,14 @@ class Pages:
 
                 async def update_progress():
                     while self.nuking:
-                        self.components.progress.setValue((self.progress / self.total * 100))
-                        self.components.progress.setFormat(f"{self.progress:,}/{self.total:,}")
+                        try:
+                            self.components.progress.setValue((self.progress / self.total * 100))
+                            self.components.progress.setFormat(f"{self.progress:,}/{self.total:,}")
+                        except RuntimeError:
+                            pass  # main progress bar deleted
                         await asyncio.sleep(0)
 
+                # Clear old boxes
                 for box in self.boxes.values():
                     box.setParent(None)
                     box.deleteLater()
@@ -380,41 +412,45 @@ class Pages:
                 self.stats.clear()
 
                 async with aiohttp.ClientSession() as session:
-                    endpoints = {hasattr(cls, "name") and getattr(cls, "name") or name: cls(session) for name, cls in vars(Endpoints).items() if inspect.isclass(cls)}
+                    # Prepare endpoints
+                    endpoints = {
+                        getattr(cls, "name", name): cls(session)
+                        for name, cls in vars(Endpoints).items() if inspect.isclass(cls)
+                    }
+                    endpoints = dict(random.sample(list(endpoints.items()), len(endpoints)))
+
                     variants = choices.variants[:self.components.slider.value()]
                     self.progress = 0
-                    self.total = len(variants)*len(endpoints)
+                    self.total = len(variants) * len(endpoints)
 
+                    # Start progress updater
                     asyncio.create_task(update_progress())
 
                     self.components.heading3.setText(f"Launching {self.total:,} virtual nukes")
-                    self.components.label1.setText(choices.email)
+                    self.components.label1.setText(f"Receiver: {choices.email}")
                     group1.hide()
                     group2.show()
 
+                    # Create boxes for endpoints
                     for endpoint in endpoints.values():
-                        name = hasattr(endpoint, "name") and getattr(endpoint, "name") or "?"
-                        icon = hasattr(endpoint, "icon") and getattr(endpoint, "icon") or "https://i.ibb.co/35gTZFC0/question-mark-4x.png"
+                        name = getattr(endpoint, "name", "?")
+                        icon = getattr(endpoint, "icon", None) or (hasattr(endpoint, "url") and await get_favicon(endpoint.url)) or "https://i.ibb.co/35gTZFC0/question-mark-4x.png"
 
                         box = QWidget(parent=self)
                         box.setFixedSize(300, 85)
-                        box.setStyleSheet(f"""
-                            background: transparent;
-                            border: 2px solid {COLOR_THEME};
-                            border-radius: 6px;
-                        """)
+                        box.setStyleSheet(f"background: transparent; border: 2px solid {COLOR_THEME}; border-radius: 6px;")
 
                         box.box_image = QLabel(parent=box)
                         box.box_image.setGeometry(10, 10, 20, 20)
-                        box.box_image.setStyleSheet(f"""background: transparent;border: none;border-radius: 25%;""")
-                        asyncio.create_task(set_pixmap(box.box_image, icon, 20, 20, 0.25))
+                        box.box_image.setStyleSheet("background: transparent; border: none;")
+                        asyncio.create_task(set_pixmap(box.box_image, icon, 20, 20, 0.1))
                         box.box_image.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
                         box.box_title = QLabel(name, parent=box)
-                        box.box_title.setGeometry(35, 10, 265, 20)  # x, y, width, height
+                        box.box_title.setGeometry(35, 10, 265, 20)
                         box.box_title.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-                        box.box_title.setStyleSheet(f"""background: transparent;border: none;border-radius: 25%;""")
-            
+                        box.box_title.setStyleSheet("background: transparent; border: none; border-radius: 25%")
+
                         box.box_progress = QProgressBar(parent=box)
                         box.box_progress.setGeometry(10, 35, 280, 40)
                         box.box_progress.setRange(0, 100)
@@ -426,32 +462,44 @@ class Pages:
                         layout.addWidget(box, alignment=default_align)
                     group2.add(*self.boxes.values())
 
-                    tasks = []
+                    # --- Queue + worker pattern ---
+                    queue = asyncio.Queue()
                     for variant in variants:
                         for endpoint in endpoints.values():
-                            tasks.append((endpoint, variant))
+                            queue.put_nowait((endpoint, variant))
 
-                    semaphore = asyncio.Semaphore(10)
-
-                    async def wrap_endpoint(endpoint, variant):
-                        box = self.boxes.get(endpoint)
-                        stats = self.stats.get(endpoint)
-                        async with semaphore:
+                    async def worker():
+                        while self.nuking:
+                            try:
+                                endpoint, variant = queue.get_nowait()
+                            except asyncio.QueueEmpty:
+                                break
+                            box = self.boxes.get(endpoint)
+                            stats = self.stats.get(endpoint)
                             try:
                                 result = await endpoint(variant)
                                 stats.append(result)
-                                stats.count(True)
                                 successful = stats.count(True)
                                 attempts = len(stats)
-                                box.box_progress.setValue(attempts/len(variants)*100)
-                                box.box_progress.setFormat(f"{successful:,}/{attempts:,}｜{round(successful/attempts*100, 1)}%")
-                                return result
+                                try:
+                                    box.box_progress.setValue(attempts / len(variants) * 100)
+                                    box.box_progress.setFormat(f"Rate: {round(successful / attempts * 100)}% ({successful:,}/{attempts:,})")
+                                except RuntimeError:
+                                    pass
+                            except asyncio.CancelledError:
+                                return
                             finally:
                                 self.progress += 1
+                                queue.task_done()
 
-                    tasks = [wrap_endpoint(endpoint, variant) for endpoint, variant in tasks]
-                    await asyncio.gather(*tasks)
-                self.nuking = False
+                    # Start a fixed number of workers (10 concurrent)
+                    workers = [asyncio.create_task(worker()) for _ in range(10)]
+                    try:
+                        await queue.join()
+                    finally:
+                        self.nuking = False
+                        for w in workers:
+                            w.cancel()
                 
             self.components.button.clicked.connect(lambda checked=False: asyncio.create_task(launch_nuke()))
             
