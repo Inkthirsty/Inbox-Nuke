@@ -1,4 +1,4 @@
-import aiohttp, aiofiles, asyncio, sys, json, os, shutil, re
+import aiohttp, aiofiles, asyncio, sys, json, os, shutil, re, inspect, time
 from PySide6.QtWidgets import (
     QApplication,
     QWidget,
@@ -10,10 +10,10 @@ from PySide6.QtWidgets import (
     QFrame,
     QGraphicsDropShadowEffect,
     QHBoxLayout,
-    QScrollArea, QCheckBox, QSpinBox, QSlider
+    QScrollArea, QCheckBox, QSpinBox, QSlider, QProgressBar, QSizePolicy
 )
-from PySide6.QtCore import Qt, QPoint, QRect, QSize, QTimer, QRegularExpression
-from PySide6.QtGui import QColor, QMouseEvent, QFont, QIcon, QCursor, QRegularExpressionValidator, QValidator
+from PySide6.QtCore import Qt, QPoint, QRect, QSize, QTimer, QRegularExpression, QByteArray
+from PySide6.QtGui import QColor, QMouseEvent, QFont, QIcon, QCursor, QRegularExpressionValidator, QValidator, QPixmap, QPainter, QBrush
 from qasync import QEventLoop
 from collections.abc import MutableMapping
 from itertools import combinations
@@ -48,6 +48,38 @@ style = style.replace("{focus_color}", COLOR_THEME)
 style = style.replace("{COLOR_1}", COLOR_1)
 style = style.replace("{COLOR_2}", COLOR_2)
 style_main = style.replace("{color}", COLOR_BORDER)
+
+async def set_pixmap(label: QLabel, source: str, width=None, height=None, radius: int | float = 0):
+    pixmap = QPixmap()
+
+    if os.path.exists(source):
+        pixmap.load(source)
+    else:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(source) as response:
+                img_bytes = await response.read()
+        pixmap.loadFromData(QByteArray(img_bytes))
+
+    if width and height:
+        pixmap = pixmap.scaled(width, height, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+
+    if radius:
+        size = pixmap.size()
+        rounded = QPixmap(size)
+        rounded.fill(Qt.GlobalColor.transparent)
+
+        if 0 < radius < 1:
+            radius = min(size.width(), size.height()) * radius
+
+        painter = QPainter(rounded)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setBrush(QBrush(pixmap))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawRoundedRect(QRect(0, 0, size.width(), size.height()), radius, radius)
+        painter.end()
+        pixmap = rounded
+
+    label.setPixmap(pixmap)
 
 # -------------------- Page Classes --------------------
 class Page(QWidget):
@@ -93,24 +125,28 @@ class Components:
 class WidgetGroup:
     def __init__(self, *widgets):
         self.widgets = list(widgets)
-        self._visibility = {w: w.isVisible() for w in widgets}
 
     def hide(self):
         for w in self.widgets:
             w.hide()
+        # Update the layout of the parent container
+        if self.widgets:
+            parent = self.widgets[0].parentWidget()
+            if parent and parent.layout():
+                parent.updateGeometry()
 
     def show(self):
         for w in self.widgets:
-            # restore previous state
-            if self._visibility.get(w, True):
-                w.show()
-            else:
-                w.hide()
+            w.show()
+        # Update the layout of the parent container
+        if self.widgets:
+            parent = self.widgets[0].parentWidget()
+            if parent and parent.layout():
+                parent.updateGeometry()
 
     def add(self, *widgets):
         for w in widgets:
             self.widgets.append(w)
-            self._visibility[w] = w.isVisible()
 
 class Pages:
     class Home(Page):
@@ -137,7 +173,7 @@ class Pages:
             layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
             # do important stuff under here
-            self.components.heading = QLabel("what would you like to do today?")
+            self.components.heading = QLabel("Inbox Nuke")
             self.components.heading.setStyleSheet("font-size: 20pt")
             self.components.heading2 = QLabel("made by max (@inkthirsty)")
             self.components.heading2.setStyleSheet("padding-bottom: 10px;font-size: 10pt;font-weight: normal")
@@ -147,14 +183,14 @@ class Pages:
             self.components.input.setFixedSize(*input_size)
             """
 
-            self.components.button = QPushButton("Nuke France", flat=True)
+            self.components.button = QPushButton("Nuke", flat=True)
             self.components.button.setFixedSize(*button_size)
             self.components.button.clicked.connect(lambda checked=False: asyncio.create_task(self.window.switchPage(Pages.Nuke)))
 
-            self.components.button2 = QPushButton("Kick a toddler", flat=True)
+            self.components.button2 = QPushButton("Settings (Coming soon maybe)", flat=True)
             self.components.button2.setFixedSize(*button_size)
 
-            self.components.button3 = QPushButton("Commit tax evasion", flat=True)
+            self.components.button3 = QPushButton("Credits (Coming soon idk)", flat=True)
             self.components.button3.setFixedSize(*button_size)
 
             custom_align = {}
@@ -177,6 +213,13 @@ class Pages:
             
     class Nuke(Page):
         def _init_widgets(self):
+            self.nuking = False
+            self.progress = 0
+            self.total = 0
+            self.boxes = {}
+            self.stats = {}
+
+            default_align = Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop
             # config
             margins = (0, 0, 0, 0)
             button_size = (250, 40)
@@ -265,13 +308,6 @@ class Pages:
             self.components.input1.setFixedSize(*input_size)
             wrap(self.components.input1.textChanged, check_email)
 
-            """
-            self.components.label1 = QLabel(f"small :3")
-            self.components.label1.setStyleSheet("padding-top: -6px;font-size: 8pt")
-            self.components.label1.setFixedSize(input_size[0], 20)
-            self.components.label1.hide()
-            """
-
             self.components.heading2 = QLabel()
             self.components.heading2.setFixedWidth(input_size[0])
 
@@ -289,7 +325,7 @@ class Pages:
             
             self.components.slider.valueChanged.connect(self.components.spinbox.setValue)
             self.components.spinbox.valueChanged.connect(self.components.slider.setValue)
-            
+
             def check_agreement():
                 agreed = self.components.checkbox.checkState() == Qt.CheckState.Checked
                 choices.agreed = agreed
@@ -308,13 +344,122 @@ class Pages:
                 criteria = [choices.email, choices.agreed, ]
                 self.components.button.setEnabled(all(criteria))
 
-            custom_align = {}
+            # section 2
+            
+            self.components.heading3 = QLabel()
+            self.components.heading3.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+            self.components.heading3.setStyleSheet("font-size: 18pt")
 
-            group1 = WidgetGroup(self.components.heading1, self.components.input1, self.components.button, self.components.checkbox)
+            self.components.label1 = QLabel()
+            self.components.label1.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+            self.components.label1.setStyleSheet("font-size: 10pt")
+            
+            self.components.progress = QProgressBar()
+            self.components.progress.setFixedWidth(input_size[0])
+            self.components.progress.setRange(0, 100)
+            self.components.progress.setValue(0)
+
+            group1 = WidgetGroup(self.components.heading, self.components.heading1, self.components.heading2, self.components.input1, self.components.button, self.components.checkbox, self.components.slider, self.components.spinbox)
+            group2 = WidgetGroup(self.components.heading3, self.components.label1, self.components.progress)
+
+            async def launch_nuke():
+                if self.nuking:
+                    return
+                self.nuking = True
+
+                async def update_progress():
+                    while self.nuking:
+                        self.components.progress.setValue((self.progress / self.total * 100))
+                        self.components.progress.setFormat(f"{self.progress:,}/{self.total:,}")
+                        await asyncio.sleep(0)
+
+                for box in self.boxes.values():
+                    box.setParent(None)
+                    box.deleteLater()
+                self.boxes.clear()
+                self.stats.clear()
+
+                async with aiohttp.ClientSession() as session:
+                    endpoints = {hasattr(cls, "name") and getattr(cls, "name") or name: cls(session) for name, cls in vars(Endpoints).items() if inspect.isclass(cls)}
+                    variants = choices.variants[:self.components.slider.value()]
+                    self.progress = 0
+                    self.total = len(variants)*len(endpoints)
+
+                    asyncio.create_task(update_progress())
+
+                    self.components.heading3.setText(f"Launching {self.total:,} virtual nukes")
+                    self.components.label1.setText(choices.email)
+                    group1.hide()
+                    group2.show()
+
+                    for endpoint in endpoints.values():
+                        name = hasattr(endpoint, "name") and getattr(endpoint, "name") or "?"
+                        icon = hasattr(endpoint, "icon") and getattr(endpoint, "icon") or "https://i.ibb.co/35gTZFC0/question-mark-4x.png"
+
+                        box = QWidget(parent=self)
+                        box.setFixedSize(300, 85)
+                        box.setStyleSheet(f"""
+                            background: transparent;
+                            border: 2px solid {COLOR_THEME};
+                            border-radius: 6px;
+                        """)
+
+                        box.box_image = QLabel(parent=box)
+                        box.box_image.setGeometry(10, 10, 20, 20)
+                        box.box_image.setStyleSheet(f"""background: transparent;border: none;border-radius: 25%;""")
+                        asyncio.create_task(set_pixmap(box.box_image, icon, 20, 20, 0.25))
+                        box.box_image.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+                        box.box_title = QLabel(name, parent=box)
+                        box.box_title.setGeometry(35, 10, 265, 20)  # x, y, width, height
+                        box.box_title.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+                        box.box_title.setStyleSheet(f"""background: transparent;border: none;border-radius: 25%;""")
+            
+                        box.box_progress = QProgressBar(parent=box)
+                        box.box_progress.setGeometry(10, 35, 280, 40)
+                        box.box_progress.setRange(0, 100)
+                        box.box_progress.setValue(0)
+                        box.box_progress.setFormat("Waiting...")
+
+                        self.boxes[endpoint] = box
+                        self.stats[endpoint] = []
+                        layout.addWidget(box, alignment=default_align)
+                    group2.add(*self.boxes.values())
+
+                    tasks = []
+                    for variant in variants:
+                        for endpoint in endpoints.values():
+                            tasks.append((endpoint, variant))
+
+                    semaphore = asyncio.Semaphore(10)
+
+                    async def wrap_endpoint(endpoint, variant):
+                        box = self.boxes.get(endpoint)
+                        stats = self.stats.get(endpoint)
+                        async with semaphore:
+                            try:
+                                result = await endpoint(variant)
+                                stats.append(result)
+                                stats.count(True)
+                                successful = stats.count(True)
+                                attempts = len(stats)
+                                box.box_progress.setValue(attempts/len(variants)*100)
+                                box.box_progress.setFormat(f"{successful:,}/{attempts:,}｜{round(successful/attempts*100, 1)}%")
+                                return result
+                            finally:
+                                self.progress += 1
+
+                    tasks = [wrap_endpoint(endpoint, variant) for endpoint, variant in tasks]
+                    await asyncio.gather(*tasks)
+                self.nuking = False
+                
+            self.components.button.clicked.connect(lambda checked=False: asyncio.create_task(launch_nuke()))
+            
+            custom_align = {}
 
             # finalize
             for widget in self.components.iter_widgets():
-                layout.addWidget(widget, alignment=custom_align.get(widget, Qt.AlignmentFlag.AlignHCenter))
+                layout.addWidget(widget, alignment=custom_align.get(widget, default_align))
             for callback in self._init_callbacks:
                 callback()
 
@@ -328,6 +473,8 @@ class Pages:
 
             main_layout = QVBoxLayout(self)
             main_layout.addWidget(scroll)
+            
+            group2.hide()
 
     @classmethod
     def instigate(cls, window):
@@ -475,7 +622,7 @@ def main():
     try:
         app = QApplication(sys.argv)
         app.setWindowIcon(QIcon(os.path.join(DIRECTORY, "assets/icon.ico")))
-        font = QFont("Nunito", 12)
+        font = QFont("Roboto", 12)
         font.setBold(True)
         app.setFont(font)
 

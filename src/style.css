@@ -15,13 +15,21 @@ QSpinBox {
     color: white;
     border: 2px solid {color};
     border-radius: 4px;
-    padding: 4px;
 }
 QSpinBox::up-button,
 QSpinBox::down-button {
     width: 0;
     height: 0;
     border: none;
+}
+QProgressBar {
+    background-color: rgba(40, 40, 40, 0.9);
+    border: 2px solid {focus_color};
+    border-radius: 4px;
+    text-align: center;
+}
+QProgressBar::chunk {
+    background-color: {focus_color}E6;
 }
 *:focus {
     outline: none;
@@ -30,17 +38,17 @@ QWidget {
     color: white;
 }
 QPushButton {
-    background-color: rgba(60, 60, 60, 0.9);
+    background-color: {COLOR_1}E6;
     color: white;
-    border: none;
+    border: 2px solid {focus_color};
     border-radius: 6px;
     padding: 6px 12px;
 }
 QPushButton:hover {
-    background-color: rgba(80, 80, 80, 0.9);
+    background-color: {COLOR_2}E6; /* 90% */
 }
 QPushButton:disabled {
-    background-color: rgba(60, 60, 60, 0.4);
+    background-color: {COLOR_2}99; /* 60% */
     color: gray;
 }
 QScrollArea {
@@ -64,4 +72,7 @@ QStackedWidget {
 QCheckBox {
     font-weight: normal;
     font-size: 10pt;
+}
+QLabel {
+    text-align: center;
 }

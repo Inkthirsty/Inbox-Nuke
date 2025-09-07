@@ -1,17 +1,44 @@
-import aiohttp
+import aiohttp, time
 
 class Endpoint:
     def __init__(self, session: aiohttp.ClientSession):
         self.session = session
 
+PASSWORD = """T)v5q(`'<>2iP29X8a+N"""
+
 class Endpoints:
-    class Home(Endpoint):
+    class FalconComputers(Endpoint):
+        name = "Falcon Computers"
+        icon = "https://i.ibb.co/RZWx1Nk/5f89d6523a2a.png"
         async def __call__(self, email: str):
             data = {
-                "publicationIds": "458709,10845,556800,329241,35345,471923,737237",
-                "email": email
+                "email": email,
+                "confirmemail": email,
+                "password": PASSWORD,
+                "confirmpassword": PASSWORD
             }
-            async with self.session.post("https://substack.com/api/v1/reader/signup/just_email", json=data) as response:
-                resp = await response.text()
-                print("RESP:", resp)
-            return response
+            async with self.session.post("https://www.falconcomputers.co.uk/myaccount/register", data=data, allow_redirects=False) as response:
+                return response.status == 302
+            
+    class altontowers(Endpoint):
+        name = "Alton Towers"
+        icon = "https://i.ibb.co/7NLKZzHx/image.png"
+        async def __call__(self, email: str):
+            data = {
+                "__RequestVerificationToken": "",
+                "Language": "en",
+                "Attraction": "PAT",
+                "Campaign": "brandsite",
+                "Source": "Website",
+                "SourceDetail": "www.altontowers.com/sign-up/",
+                "ConsentType": "Merlin Global",
+                "FallbackCountry": "GB",
+                "EnableRecaptcha": "False",
+                "Email": email,
+                "FirstName": str(time.time()),
+                "Lastname": str(time.time()),
+                "Permission": "on",
+            }
+            async with self.session.post("https://www.altontowers.com/umbraco/api/signupform/submit", json=data) as response:
+                return response.ok # it returns 200 even if it doesnt send so idk
+            
