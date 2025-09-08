@@ -1,4 +1,4 @@
-import aiohttp, time
+import aiohttp, time, json
 
 class Endpoint:
     def __init__(self, session: aiohttp.ClientSession):
@@ -20,7 +20,7 @@ class Endpoints:
             async with self.session.post("https://www.falconcomputers.co.uk/myaccount/register", data=data, allow_redirects=False) as response:
                 return response.status == 302
             
-    class altontowers(Endpoint):
+    class AltonTowers(Endpoint):
         name = "Alton Towers"
         url = "https://www.altontowers.com/umbraco/api/signupform/submit"
         async def __call__(self, email: str):
@@ -42,7 +42,7 @@ class Endpoints:
             async with self.session.post("https://www.altontowers.com/umbraco/api/signupform/submit", json=data) as response:
                 return response.ok # it returns 200 even if it doesnt send so idk
             
-    class paramore(Endpoint):
+    class Paramore(Endpoint):
         name = "Paramore"
         url = "https://paramore.net/"
         async def __call__(self, email: str):
@@ -53,3 +53,30 @@ class Endpoints:
             async with self.session.post("https://ukstore.paramore.net/a/app/vice-versa/api/subscribe", json=data) as response:
                 return response.ok # it returns 200 even if it doesnt send so idk
             
+    class FirehouseSubs(Endpoint):
+        name = "Firehouse Subs"
+        url = "https://www.firehousesubs.com/?triggerSignInAccessibility=true"
+        async def __call__(self, email: str):
+            data = {
+                "operationName": "SignUp",
+                "query": "mutation SignUp($input: SignUpUserInput!) {\n  signUp(userInfo: $input)\n}\n",
+                "variables": {
+                    "input": {
+                        "country": "USA",
+                        "dob": "",
+                        "name": "Fricker",
+                        "phoneNumber": "+12312341234",
+                        "platform": "web",
+                        "stage": "prod",
+                        "userName": email,
+                        "wantsPromotionalEmails": True,
+                        "zipcode": ""
+                    }
+                }
+            }
+            async with self.session.post("https://use1-prod-fhs-gateway.rbictg.com/graphql", json=data) as response:
+                try:
+                    resp = json.loads(await response.text())
+                    return not resp.get("errors")
+                except Exception:
+                    return

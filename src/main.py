@@ -22,7 +22,7 @@ if os.path.exists(TEMP_PATH):
 os.makedirs(TEMP_PATH, exist_ok=True)
 
 TITLE = "Inbox Nuke"
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 
 COLOR_1 = "#0a0a0a"
 COLOR_2 = "#162034"
@@ -371,6 +371,8 @@ class Pages:
                             self.components.progress.setFormat(f"{self.progress:,}/{self.total:,}")
                         except RuntimeError:
                             pass
+                        if self.progress >= self.total:
+                            break  # exit when done
                         await asyncio.sleep(0)
 
                 for box in list(self.boxes.values()):
@@ -378,7 +380,7 @@ class Pages:
                 self.boxes.clear()
                 self.stats.clear()
 
-                async with aiohttp.ClientSession() as session:
+                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=3)) as session:
                     endpoints = {getattr(cls, "name", name): cls(session) for name, cls in vars(Endpoints).items() if inspect.isclass(cls)}
                     endpoints = dict(random.sample(list(endpoints.items()), len(endpoints)))
 
@@ -591,7 +593,7 @@ async def main_async(window):
             async with session.get("https://rawcdn.githack.com/Inkthirsty/Inbox-Nuke/refs/heads/main/latest.txt") as response:
                 response.raise_for_status()
                 latest = await response.text()
-                if VERSION != latest:
+                if VERSION < latest:
                     window.setWindowTitle(f"{window.windowTitle()} (latest: v{latest})")
         except aiohttp.ClientError as e: print(f"Error fetching latest version: {e}")
     await asyncio.sleep(0)
@@ -599,7 +601,7 @@ async def main_async(window):
 def main():
     try:
         app = QApplication(sys.argv)
-        app.setWindowIcon(QIcon(os.path.join(DIRECTORY,"assets/icon.ico")))
+        app.setWindowIcon(QIcon(os.path.join(DIRECTORY, "assets/icon.ico")))
         font = QFont("Roboto",12)
         font.setBold(True)
         app.setFont(font)
