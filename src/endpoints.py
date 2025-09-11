@@ -51,7 +51,7 @@ class Endpoints:
                 "email": email,
             }
             async with self.session.post("https://ukstore.paramore.net/a/app/vice-versa/api/subscribe", json=data) as response:
-                return response.ok # it returns 200 even if it doesnt send so idk
+                return response.ok # it returns 200 even if it doesnt send
             
     class FirehouseSubs(Endpoint):
         name = "Firehouse Subs"
@@ -80,3 +80,36 @@ class Endpoints:
                     return not resp.get("errors")
                 except Exception:
                     return
+            
+    class CreativeBloq(Endpoint):
+        name = "Creative Bloq"
+        url = "https://www.creativebloq.com/"
+        async def __call__(self, email: str):
+            data = {
+                "submission": {
+                    "code": "XCQ-X",
+                    "consent": {
+                        "data": True,
+                        "marketing": True
+                    },
+                    "country": "GB",
+                    "email": email,
+                    "language": "EN",
+                    "name": "",
+                    "source": "15"
+                }
+            }
+            async with self.session.post("https://newsletter-subscribe.futureplc.com/v2/submission/submit", json=data) as response:
+                return response.ok # it returns 200 even if it doesnt send
+        
+    class WarnerMusicCanada(Endpoint):
+        name = "Warner Music Canada"
+        url = "https://store.warnermusic.ca"
+        async def __call__(self, email: str):
+            data = {
+                "email": email,
+                "type": "welcome10"
+            }
+            async with self.session.post("https://stage.store-warnermusiccanada-com.nds.acquia-psi.com/email/send_notification.php", json=data) as response:
+                return response.ok # it returns 200 even if it doesnt send
+        

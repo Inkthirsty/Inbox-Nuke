@@ -22,7 +22,7 @@ if os.path.exists(TEMP_PATH):
 os.makedirs(TEMP_PATH, exist_ok=True)
 
 TITLE = "Inbox Nuke"
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 
 COLOR_1 = "#0a0a0a"
 COLOR_2 = "#162034"
@@ -390,7 +390,7 @@ class Pages:
                     asyncio.create_task(update_progress())
 
                     self.components.heading3.setText(f"Launching {self.total:,} virtual nukes")
-                    self.components.label1.setText(f"Receiver: {choices.email}")
+                    self.components.label1.setText(choices.email)
                     group1.hide()
                     group2.show()
 
@@ -582,7 +582,7 @@ async def main_async(window):
         await CONFIG.load()
         current_config = CONFIG.as_dict()
         try:
-            async with session.get(f"https://rawcdn.githack.com/Inkthirsty/Inbox-Nuke/refs/heads/main/src/config.example.json?min=1") as response:
+            async with session.get(f"https://raw.githubusercontent.com/Inkthirsty/Inbox-Nuke/refs/heads/main/src/config.example.json") as response:
                 response.raise_for_status()
                 default_config = json.loads(await response.text())
                 merged = merge_config(default_config,current_config)
@@ -590,7 +590,7 @@ async def main_async(window):
         except aiohttp.ClientError as e: print(f"Error fetching remote config: {e}")
 
         try:
-            async with session.get("https://rawcdn.githack.com/Inkthirsty/Inbox-Nuke/refs/heads/main/latest.txt") as response:
+            async with session.get("https://raw.githubusercontent.com/Inkthirsty/Inbox-Nuke/refs/heads/main/latest.txt") as response:
                 response.raise_for_status()
                 latest = await response.text()
                 if VERSION < latest:
