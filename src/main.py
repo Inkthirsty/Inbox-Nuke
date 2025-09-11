@@ -32,7 +32,9 @@ COLOR_GREEN = "#7fff4d"
 COLOR_RED = "#FF4D4D"
 REQUIRED = f"<span style=\"color:{COLOR_RED}\">*</span>"
 
-with open("style.css", "r") as file:
+STYLE_PATH = os.path.join(DIRECTORY, "assets/style.css")
+
+with open(STYLE_PATH, "r") as file:
     style = file.read()
 style = style.replace("{focus_color}", COLOR_THEME).replace("{COLOR_1}", COLOR_1).replace("{COLOR_2}", COLOR_2)
 style_main = style.replace("{color}", COLOR_BORDER)
