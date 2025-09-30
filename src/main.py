@@ -460,6 +460,7 @@ class Pages:
                     try:
                         await queue.join()
                     finally:
+                        await stop_nuke()
                         self.nuking = False
                         for w in self._nuke_tasks:
                             w.cancel()
