@@ -596,8 +596,8 @@ async def main_async(window):
             async with session.get("https://raw.githubusercontent.com/Inkthirsty/Inbox-Nuke/refs/heads/main/latest.txt") as response:
                 response.raise_for_status()
                 latest = await response.text()
-                if VERSION < latest:
-                    window.setWindowTitle(f"{window.windowTitle()} (Newest: {latest})")
+                if VERSION != latest:
+                    window.setWindowTitle(f"{window.windowTitle()} (Newest: {latest}) ")
         except aiohttp.ClientError as e: print(f"Error fetching latest version: {e}")
     await asyncio.sleep(0)
 
