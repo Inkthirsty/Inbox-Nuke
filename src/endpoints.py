@@ -52,7 +52,7 @@ class Endpoints:
             }
             async with self.session.post("https://ukstore.paramore.net/a/app/vice-versa/api/subscribe", json=data) as response:
                 return response.ok # it returns 200 even if it doesnt send
-            
+    
     class FirehouseSubs(Endpoint):
         name = "Firehouse Subs"
         url = "https://www.firehousesubs.com/?triggerSignInAccessibility=true"
@@ -104,7 +104,7 @@ class Endpoints:
         
     class WarnerMusicCanada(Endpoint):
         name = "Warner Music Canada"
-        url = "https://store.warnermusic.ca"
+        url = "https://www.alltheanime.com/"
         async def __call__(self, email: str):
             data = {
                 "email": email,
@@ -113,3 +113,29 @@ class Endpoints:
             async with self.session.post("https://stage.store-warnermusiccanada-com.nds.acquia-psi.com/email/send_notification.php", json=data) as response:
                 return response.ok # it returns 200 even if it doesnt send
         
+    class RecipeTinEats(Endpoint):
+        name = "RecipeTin Eats"
+        url = "https://www.recipetineats.com/newsletter-signup-confirmation/"
+        async def __call__(self, email: str):
+            data = {
+                "first_name": "monkey",
+                "email_address": email,
+                "subscribe": ""
+            }
+            async with self.session.post("https://app.convertkit.com/forms/1292317/subscriptions", data=data) as response:
+                return response.ok
+        
+    class TaylorSwift(Endpoint):
+        name = "Taylor Swift"
+        url = "https://www.taylorswift.com/"
+        async def __call__(self, email: str):
+            data = {
+                "g": "WLqdaH",
+                "email": email,
+                "$country": "United States",
+                "$fields": "$source",
+                "$source": "Footer"
+            }
+            async with self.session.post("https://manage.kmail-lists.com/ajax/subscriptions/subscribe", data=data) as response:
+                return response.ok
+            

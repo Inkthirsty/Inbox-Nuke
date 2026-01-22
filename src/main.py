@@ -1,7 +1,7 @@
-import aiohttp, aiofiles, asyncio, sys, json, os, shutil, re, inspect, time, random
+import aiohttp, aiofiles, asyncio, sys, json, os, shutil, re, inspect, random
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QLabel, QLineEdit, QStackedWidget,
-    QPushButton, QFrame, QGraphicsDropShadowEffect, QHBoxLayout, QScrollArea,
+    QPushButton, QScrollArea,
     QCheckBox, QSpinBox, QSlider, QProgressBar, QSizePolicy
 )
 from PySide6.QtCore import Qt, QRect, QByteArray, QRegularExpression
@@ -22,7 +22,7 @@ if os.path.exists(TEMP_PATH):
 os.makedirs(TEMP_PATH, exist_ok=True)
 
 TITLE = "Inbox Nuke"
-VERSION = "1.0.3"
+VERSION = "1.0.4"
 
 COLOR_1 = "#0a0a0a"
 COLOR_2 = "#162034"
