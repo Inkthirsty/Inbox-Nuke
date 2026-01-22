@@ -597,7 +597,7 @@ async def main_async(window):
                 response.raise_for_status()
                 latest = await response.text()
                 if VERSION < latest:
-                    window.setWindowTitle(f"{window.windowTitle()} (latest: v{latest})")
+                    window.setWindowTitle(f"{window.windowTitle()} (Newest: {latest})")
         except aiohttp.ClientError as e: print(f"Error fetching latest version: {e}")
     await asyncio.sleep(0)
 
