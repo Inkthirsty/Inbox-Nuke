@@ -22,7 +22,7 @@ if os.path.exists(TEMP_PATH):
 os.makedirs(TEMP_PATH, exist_ok=True)
 
 TITLE = "Inbox Nuke"
-VERSION = "1.0.4"
+VERSION = "1.4"
 
 COLOR_1 = "#0a0a0a"
 COLOR_2 = "#162034"
