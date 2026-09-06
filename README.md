@@ -3,7 +3,7 @@ This tool was created for personal experimentation to test how many messages can
 ## Latest Release (v1.5)
 [![stable](https://img.shields.io/badge/Download-Inbox--Nuke.exe-blue)](https://github.com/Inkthirsty/Inbox-Nuke/raw/refs/heads/main/src/Inbox-Nuke.exe)
 ## Setup (Python 3.10)
-* Create a venv with `python -m venv venv`
+* Create a virtual environment with `python -m venv venv`
 * Activate it
   * `.\venv\Scripts\Activate.ps1` on Windows PowerShell
   * `.\venv\Scripts\activate.bat` on Windows Command Prompt
